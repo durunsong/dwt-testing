@@ -63,9 +63,12 @@ function readCurrentSession(state: RuntimeContextState, step?: ScenarioStep): Sc
   return session;
 }
 
+/** 自动化测试邮箱域名。注册/KYC 等流程的 ${mail_email} 变量会生成该域名下的随机邮箱。 */
+export const TEST_EMAIL_DOMAIN = "test.com";
+
 /**
- * 6 位数字 + 6 位小写字母 + @qq.com。
- * 对齐后端 StringUtil.isLegalEmail（本地段仅 \w）与 SIT 常用测试邮箱域名。
+ * 6 位数字 + 6 位小写字母 + @test.com。
+ * 对齐后端 StringUtil.isLegalEmail（本地段仅 \w）与项目测试邮箱域名约定。
  */
 export function randomTestEmail(): string {
   const digits = Array.from({ length: 6 }, () => Math.floor(Math.random() * 10)).join("");
@@ -73,7 +76,7 @@ export function randomTestEmail(): string {
     const code = 97 + Math.floor(Math.random() * 26);
     return String.fromCharCode(code);
   }).join("");
-  return `${digits}${letters}@qq.com`;
+  return `${digits}${letters}@${TEST_EMAIL_DOMAIN}`;
 }
 
 /** 与后端 StringUtil.isLegalEmail 一致：本地段仅字母数字下划线及 .-+ */

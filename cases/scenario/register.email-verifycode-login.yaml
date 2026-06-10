@@ -1,7 +1,7 @@
 case_id: "register_email_verifycode_login"
 case_name: "邮箱注册并验证码登录"
 case_type: "user-main"
-description: "用户在注册页选择邮箱注册完成注册，等待倒计时跳转后在登录页切换到验证码登录tab，获取登录验证码并登录新账号。"
+description: "用户在注册页选择邮箱注册完成注册，等待倒计时跳转后在登录页切换到验证码登录tab，获取登录验证码并登录新账号。邮箱通过 ${mail_email} 自动生成 @test.com 域名，每次运行自动更换。"
 mode: hybrid
 defaults:
   step_timeout_ms: 30000

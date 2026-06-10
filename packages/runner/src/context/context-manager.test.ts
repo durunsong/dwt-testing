@@ -60,7 +60,7 @@ test("ContextManager builds 11-digit phone from timestamp8", () => {
   assert.equal(context.state.variables.phone?.length, 11);
 });
 
-test("ContextManager resolves random qq.com test emails", () => {
+test("ContextManager resolves random test.com test emails", () => {
   const context = new ContextManager().create("run-mail-1", "sit", {
     case_id: "register_email_login",
     case_name: "邮箱注册",
@@ -73,6 +73,6 @@ test("ContextManager resolves random qq.com test emails", () => {
   } satisfies ScenarioCase);
 
   const email = context.state.variables.email ?? "";
-  assert.match(email, /^\d{6}[a-z]{6}@qq\.com$/);
+  assert.match(email, /^\d{6}[a-z]{6}@test\.com$/);
   assert.equal(matchesBackendLegalEmail(email), true);
 });

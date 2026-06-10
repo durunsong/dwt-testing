@@ -19,9 +19,10 @@ cp .env.example .env.sit
 | --- | --- | --- | --- |
 | user 登录页 | `USER_LOGIN_URL` | user 端登录入口 | 指向测试环境，不允许使用生产域名。 |
 | user 注册页 | `USER_REGISTER_URL` | 邮箱/手机号注册流程 | 指向测试环境注册页，不允许使用生产域名。 |
-| user 账号 | `USER_USERNAME` | user 登录、KYC、钱包、消息、账号安全 | 账号状态正常，具备访问目标菜单权限。 |
+| user 账号 | `USER_USERNAME` | user 登录、KYC、钱包、消息、账号安全 | 账号状态正常，具备访问目标菜单权限；邮箱账号建议使用 `@test.com` 域名。 |
 | user 密码 | `USER_PASSWORD` | user 登录 | 放在本地环境变量。 |
 | 注册默认密码 | `USER_REGISTER_PASSWORD` | 注册后密码登录、验证码登录流程 | 8-20 位，需同时包含字母、数字和 `._~!@#$^&*` 中的特殊字符，例如 `Test@12345.`。 |
+| 注册测试邮箱 | `${mail_email}` / `${kyc_mail_email}` / `${kyc_apv_mail_email}` | 邮箱注册、KYC 提交流程 | 用例运行时自动生成 `6位数字+6位小写字母@test.com`，每次执行自动更换。 |
 | admin 登录页 | `ADMIN_LOGIN_URL` | admin 端登录入口 | 指向测试环境，不允许使用生产域名。 |
 | admin 账号 | `ADMIN_USERNAME` | 后台登录、KYC 审核、资料修改 | 具备审核和资料编辑权限。 |
 | admin 密码 | `ADMIN_PASSWORD` | admin 登录和资料修改确认 | 放在本地环境变量。 |

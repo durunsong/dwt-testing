@@ -66,7 +66,7 @@ test("classifies login input mismatches as test automation before backend API fa
           ok: true,
           failed: true,
           failureReason: "用户不存在",
-          requestPostData: "loginName=1925344663%40qq.com2124&loginPwd=******",
+          requestPostData: "loginName=autotest%40test.com2124&loginPwd=******",
           bodyJson: {
             code: "1001",
             msg: "用户不存在",
@@ -80,8 +80,8 @@ test("classifies login input mismatches as test automation before backend API fa
           target: "user_login_username",
           protected: false,
           matched: false,
-          expectedValue: "1925344663@qq.com",
-          actualValue: "1925344663@qq.com2124",
+          expectedValue: "autotest@test.com",
+          actualValue: "autotest@test.com2124",
           checkedAt: "2026-05-25T07:14:00.978Z"
         }]
       }

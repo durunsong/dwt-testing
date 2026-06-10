@@ -1,7 +1,7 @@
 case_id: "register_email_login"
 case_name: "邮箱注册并密码登录"
 case_type: "user-main"
-description: "用户在注册页选择邮箱注册，填写邮箱和验证码后设置密码完成注册，等待倒计时跳转后在登录页用密码登录新账号。"
+description: "用户在注册页选择邮箱注册，填写邮箱和验证码后设置密码完成注册，等待倒计时跳转后在登录页用密码登录新账号。邮箱通过 ${mail_email} 自动生成 @test.com 域名，每次运行自动更换。"
 mode: hybrid
 defaults:
   step_timeout_ms: 30000
