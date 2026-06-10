@@ -17,6 +17,7 @@ import { buildLoginStillPendingMessage, isLoginUrl } from "./login-result";
 import { createLocatorPlans, type LocatorPlan } from "./locator-candidates";
 import type { VisualExecutor } from "./visual-executor";
 import { resolveUploadFilePath } from "../utils/upload-file";
+import { navigatePage, splitHashUrl } from "../utils/hash-navigation";
 import { buildInputValueDiagnostic, type InputValueDiagnostic, type TrackedInput } from "./action-diagnostics";
 
 export class WebExecutor {
@@ -51,7 +52,7 @@ export class WebExecutor {
     switch (step.type) {
       case "web_open":
         return this.withApiWait(page, step, async () => {
-          await page.goto(this.resolve(step.url), { waitUntil: "domcontentloaded" });
+          await this.openPage(page, step);
         }, async () => {
           await this.waitForNetworkIfNeeded(page, step);
           return { message: `已打开 ${this.resolve(step.url)}` };
@@ -346,10 +347,18 @@ export class WebExecutor {
       return;
     }
 
-    await this.input.logger.info("检测到 user 设备二次验证，准备从 admin 消息中心获取邮箱验证码");
+    await this.input.logger.info("检测到 user 设备二次验证，准备从 admin 短信记录获取验证码");
+    const emailRadio = page.getByRole("radio", { name: "邮箱验证码" });
+    if (await emailRadio.isVisible().catch(() => false)) {
+      await emailRadio.click({ timeout: 3_000 }).catch(() => undefined);
+    }
     await page.getByRole("button", { name: "获取验证码" }).click({ timeout: 10_000 });
+    await page.waitForTimeout(8_000);
 
-    const code = await this.fetchLatestAdminMessageVerificationCode();
+    const filterTarget = this.resolve(String(step.username ?? ""))
+      || (this.input.context.state.sessions.user as ScenarioSession | undefined)?.username
+      || "";
+    const code = await this.fetchLatestAdminMessageVerificationCode(filterTarget);
     await page.bringToFront().catch(() => undefined);
     const codeInput = page.getByPlaceholder("请输入验证码").first();
     await this.input.visual.highlight(page, codeInput);
@@ -361,7 +370,89 @@ export class WebExecutor {
     await verifyButton.click({ timeout: 10_000 });
   }
 
-  private async fetchLatestAdminMessageVerificationCode(): Promise<string> {
+  private adminSmsLogUrl(adminLoginUrl: string): string {
+    const { pageUrl } = splitHashUrl(adminLoginUrl);
+    return `${pageUrl}#/admin/sys/log?activeName=sms-record`;
+  }
+
+  private parseVerificationCodeFromText(text: string): string | undefined {
+    const matched = text.match(/(?:验证码|校验码)[:：\s]*(\d{4,8})/);
+    if (!matched?.[1]) {
+      return undefined;
+    }
+    if (/^20\d{4}$/.test(matched[1])) {
+      return undefined;
+    }
+    return matched[1];
+  }
+
+  private normalizeSmsMatchTarget(value?: string): string {
+    return (value ?? "").replace(/\s+/g, "").toLowerCase();
+  }
+
+  private digitsOnly(value?: string): string {
+    return (value ?? "").replace(/\D+/g, "");
+  }
+
+  private smsTargetMatches(filterTarget?: string, rowTarget?: string): boolean {
+    const normalizedFilter = this.normalizeSmsMatchTarget(filterTarget);
+    const normalizedRowTarget = this.normalizeSmsMatchTarget(rowTarget);
+    if (!normalizedFilter || !normalizedRowTarget) {
+      return false;
+    }
+    if (normalizedRowTarget.includes(normalizedFilter) || normalizedFilter.includes(normalizedRowTarget)) {
+      return true;
+    }
+    const filterDigits = this.digitsOnly(filterTarget);
+    const rowDigits = this.digitsOnly(rowTarget);
+    if (!filterDigits || !rowDigits) {
+      return false;
+    }
+    return rowDigits.includes(filterDigits) || filterDigits.includes(rowDigits);
+  }
+
+  private resolveAdminSmsFilterTarget(step?: ScenarioStep): string {
+    const explicit = step?.filter_target?.trim();
+    if (explicit && !/\$\{[^}]+\}/.test(explicit)) {
+      return this.resolve(explicit);
+    }
+    return this.input.context.getVariable("phone")
+      ?? this.input.context.getVariable("email")
+      ?? "";
+  }
+
+  private async scanAdminSmsForVerificationCode(adminPage: Page, filterTarget?: string): Promise<string> {
+    const rows = adminPage.locator(".el-table__body-wrapper tbody tr.el-table__row");
+    const count = await rows.count().catch(() => 0);
+    const normalizedFilter = this.normalizeSmsMatchTarget(filterTarget);
+    let fallbackCode: string | undefined;
+
+    for (let index = 0; index < Math.min(count, 20); index += 1) {
+      const row = rows.nth(index);
+      const targetNo = ((await row.locator("td").first().textContent()) ?? "").trim();
+      const content = ((await row.locator("td:nth-child(5)").textContent()) ?? "").trim();
+      const code = this.parseVerificationCodeFromText(content);
+      if (!code) {
+        continue;
+      }
+      if (!normalizedFilter) {
+        return code;
+      }
+      if (this.smsTargetMatches(filterTarget, targetNo)) {
+        return code;
+      }
+      fallbackCode ??= code;
+    }
+
+    if (fallbackCode) {
+      return fallbackCode;
+    }
+
+    const latestContent = ((await adminPage.locator(".el-table__body-wrapper tbody tr.el-table__row:first-child td:nth-child(5)").textContent()) ?? "").trim();
+    throw new Error(`admin 短信记录未找到验证码${filterTarget ? `（目标：${filterTarget}）` : ""}，最新内容：${latestContent}`);
+  }
+
+  private async fetchLatestAdminMessageVerificationCode(filterTarget?: string): Promise<string> {
     if (!this.input.getPage) {
       throw new Error("user 二次验证需要 admin 会话，但当前执行器未提供会话访问能力");
     }
@@ -371,54 +462,80 @@ export class WebExecutor {
       throw new Error("user 二次验证需要配置 admin session 的登录地址、账号和密码");
     }
 
-    for (let attempt = 1; attempt <= 2; attempt += 1) {
+    for (let attempt = 1; attempt <= 3; attempt += 1) {
       try {
         const adminPage = await this.openAdminVerificationPage();
-        await this.ensureAdminLoggedIn(adminPage, adminSession);
-        await adminPage.goto(this.adminMessageUrl(adminSession.login_url), { waitUntil: "domcontentloaded" });
-        await adminPage.waitForLoadState("networkidle", { timeout: 5_000 }).catch(() => undefined);
+        await navigatePage(adminPage, this.adminSmsLogUrl(adminSession.login_url), 15_000);
+        await adminPage.waitForLoadState("networkidle", { timeout: 8_000 }).catch(() => undefined);
 
-        const firstEmailRow = adminPage.locator(".el-table__row, tr, [role='row']", { hasText: "邮箱信息" }).first();
-        await firstEmailRow.waitFor({ state: "visible", timeout: 10_000 });
-        await this.input.visual.highlight(adminPage, firstEmailRow);
-        const expandTarget = firstEmailRow.locator(".el-table__expand-icon, [class*='expand'], td, [role='cell']").first();
-        await expandTarget.click({ timeout: 10_000 });
+        if (await this.isAdminLoginPage(adminPage)) {
+          await this.performAdminLogin(adminPage, adminSession);
+          await navigatePage(adminPage, this.adminSmsLogUrl(adminSession.login_url), 15_000);
+          await adminPage.waitForLoadState("networkidle", { timeout: 8_000 }).catch(() => undefined);
+        }
 
-        const code = await this.extractVerificationCode(adminPage);
-        await this.input.logger.info("已从 admin 消息中心获取 user 二次验证邮箱验证码");
+        if (attempt > 1) {
+          await adminPage.reload({ waitUntil: "domcontentloaded" }).catch(() => undefined);
+          await adminPage.waitForTimeout(4_000);
+        }
+
+        await adminPage.locator(".el-table__body-wrapper tbody tr.el-table__row").first()
+          .waitFor({ state: "visible", timeout: 10_000 })
+          .catch(() => undefined);
+
+        const code = await this.scanAdminSmsForVerificationCode(adminPage, filterTarget);
+        await this.input.logger.info("已从 admin 短信记录获取 user 二次验证验证码");
         return code;
       } catch (error) {
-        if (attempt < 2 && isTargetClosedError(error)) {
+        if (attempt < 3 && isTargetClosedError(error)) {
           await this.input.logger.info("admin 会话页面已关闭，重新打开页面后重试获取验证码");
+          continue;
+        }
+        if (attempt < 3) {
+          await this.input.logger.info(`admin 短信记录第 ${attempt} 次取码失败，刷新后重试`);
           continue;
         }
         throw error;
       }
     }
 
-    throw new Error("admin 消息中心获取邮箱验证码失败");
+    throw new Error("admin 短信记录获取验证码失败");
   }
 
   private async openAdminVerificationPage(): Promise<Page> {
-    if (this.input.newPage) {
-      return this.input.newPage("admin");
-    }
     if (this.input.getPage) {
-      return this.input.getPage("admin");
+      return await this.input.getPage("admin");
+    }
+    if (this.input.newPage) {
+      return await this.input.newPage("admin");
     }
     throw new Error("user 二次验证需要 admin 会话，但当前执行器未提供会话访问能力");
   }
 
-  private async ensureAdminLoggedIn(page: Page, adminSession: ScenarioSession): Promise<void> {
-    if (!isLoginUrl(page.url()) && page.url() !== "about:blank") {
-      return;
+  private async isAdminLoginPage(page: Page): Promise<boolean> {
+    if (page.url() === "about:blank" || isLoginUrl(page.url())) {
+      return true;
     }
 
-    await page.goto(adminSession.login_url, { waitUntil: "domcontentloaded" });
+    const usernameField = page.locator('input[name="username"], [placeholder*="手机号或邮箱"], [placeholder*="账号"]').first();
+    const passwordField = page.locator('input[type="password"], [placeholder*="密码"]').first();
+    const [usernameVisible, passwordVisible] = await Promise.all([
+      usernameField.isVisible().catch(() => false),
+      passwordField.isVisible().catch(() => false)
+    ]);
+    return usernameVisible && passwordVisible;
+  }
+
+  private async performAdminLogin(page: Page, adminSession: ScenarioSession): Promise<void> {
+    await navigatePage(page, adminSession.login_url, 15_000);
+    await page.waitForLoadState("domcontentloaded").catch(() => undefined);
+    await page.waitForLoadState("networkidle", { timeout: 8_000 }).catch(() => undefined);
+
     const usernameStep = { type: "flow_login", target: "admin_login_username", value: adminSession.username } as ScenarioStep;
     const usernameLocator = await this.locator(page, usernameStep);
+    await usernameLocator.waitFor({ state: "visible", timeout: 15_000 });
     await this.input.visual.highlight(page, usernameLocator);
-    await usernameLocator.fill(adminSession.username ?? "", { timeout: 10_000 });
+    await usernameLocator.fill(adminSession.username ?? "", { timeout: 15_000 });
     this.recordInputDiagnostic(page, buildInputValueDiagnostic({
       phase: "after_input",
       stepId: usernameStep.step_id,
@@ -433,15 +550,16 @@ export class WebExecutor {
     await this.click(page, { type: "flow_login", target: "admin_login_submit" } as ScenarioStep);
 
     await Promise.race([
-      page.waitForURL((url) => !isLoginUrl(url.toString()), { timeout: 15_000 }),
-      usernameLocator.waitFor({ state: "hidden", timeout: 15_000 })
+      page.waitForURL((url) => !isLoginUrl(url.toString()), { timeout: 20_000 }),
+      usernameLocator.waitFor({ state: "hidden", timeout: 20_000 })
     ]).catch(() => undefined);
   }
 
-  private adminMessageUrl(adminLoginUrl: string): string {
-    const url = new URL(adminLoginUrl);
-    url.hash = "/admin/message";
-    return url.toString();
+  private async ensureAdminLoggedIn(page: Page, adminSession: ScenarioSession): Promise<void> {
+    if (!(await this.isAdminLoginPage(page))) {
+      return;
+    }
+    await this.performAdminLogin(page, adminSession);
   }
 
   private async extractVerificationCode(page: Page): Promise<string> {
@@ -458,12 +576,20 @@ export class WebExecutor {
   }
 
   private async flowSubmitKyc(page: Page, step: ScenarioStep): Promise<void> {
-    await this.optionalInput(page, step, "kyc_enterprise_name", "${var.enterprise_name}");
-    await this.optionalInput(page, step, "kyc_license_no", "${var.license_no}");
-    await this.optionalInput(page, step, "kyc_legal_person", "${var.legal_person}");
-    await this.optionalInput(page, step, "kyc_id_card_no", "${var.id_card_no}");
-    await this.optionalUpload(page, step, "kyc_license_upload", process.env.KYC_BUSINESS_LICENSE_FILE);
-    await this.click(page, { ...step, target: "kyc_submit" });
+    const { runKycSubmitFlow } = await import("./kyc-flow");
+    await runKycSubmitFlow(page, step, {
+      rootDir: this.input.rootDir,
+      locations: this.input.locations,
+      scenario: this.input.context.state.scenario,
+      resolve: (value) => this.resolve(value),
+      timeoutMs: (currentStep) => this.timeoutMs(currentStep),
+      click: (currentPage, currentStep) => this.click(currentPage, currentStep),
+      inputText: (currentPage, currentStep) => this.inputText(currentPage, currentStep),
+      upload: (currentPage, currentStep) => this.upload(currentPage, currentStep),
+      optionalInput: (currentPage, base, target, value) => this.optionalInput(currentPage, base, target, value),
+      optionalUpload: (currentPage, base, target, value) => this.optionalUpload(currentPage, base, target, value),
+      optionalClick: (currentPage, base, target) => this.optionalClick(currentPage, base, target)
+    });
   }
 
   private async flowAdminApproveKyc(page: Page, step: ScenarioStep): Promise<void> {
@@ -476,9 +602,14 @@ export class WebExecutor {
   }
 
   private async inputText(page: Page, step: ScenarioStep): Promise<void> {
+    const expectedValue = this.resolve(step.value);
+    if (step.target === "register_input_phone") {
+      await this.inputRegisterPhoneNumber(page, step, expectedValue);
+      return;
+    }
+
     const locator = await this.locator(page, step);
     await this.input.visual.highlight(page, locator);
-    const expectedValue = this.resolve(step.value);
     await locator.fill(expectedValue, { timeout: this.timeoutMs(step) });
     const actualValue = await readLocatorValue(locator);
     this.recordInputDiagnostic(page, buildInputValueDiagnostic({
@@ -501,10 +632,54 @@ export class WebExecutor {
 
   private async click(page: Page, step: ScenarioStep): Promise<void> {
     await this.recordTrackedInputsBeforeClick(page, step);
+    if (step.target === "register_agree_checkbox") {
+      await this.checkRegisterAgreeCheckbox(page, step);
+      return;
+    }
+
     const locator = await this.locator(page, step);
     await this.input.visual.highlight(page, locator);
     await this.input.visual.clickRipple(page, locator);
     await locator.click({ timeout: this.timeoutMs(step) });
+  }
+
+  private async inputRegisterPhoneNumber(page: Page, step: ScenarioStep, expectedValue: string): Promise<void> {
+    const phoneInput = await this.locator(page, step);
+    await this.input.visual.highlight(page, phoneInput);
+    await phoneInput.click({ timeout: this.timeoutMs(step) });
+    await phoneInput.fill("", { timeout: this.timeoutMs(step) });
+    await phoneInput.pressSequentially(expectedValue, { delay: 40 });
+    await phoneInput.press("Tab");
+    await phoneInput.evaluate((element) => {
+      element.dispatchEvent(new Event("input", { bubbles: true }));
+      element.dispatchEvent(new Event("change", { bubbles: true }));
+      element.blur();
+    });
+    await page.waitForTimeout(400);
+
+    const actualValue = await readLocatorValue(phoneInput);
+    this.recordInputDiagnostic(page, buildInputValueDiagnostic({
+      phase: "after_input",
+      stepId: step.step_id,
+      stepName: step.name,
+      stepType: step.type,
+      target: step.target,
+      expectedValue,
+      actualValue
+    }));
+    this.trackInput(page, { step, expectedValue });
+  }
+
+  private async checkRegisterAgreeCheckbox(page: Page, step: ScenarioStep): Promise<void> {
+    const checkboxInput = page.locator(
+      "[data-testid='register-agree-checkbox'] input[type='checkbox'], [data-testid='register-agree-checkbox'] .el-checkbox__original"
+    ).first();
+    await checkboxInput.waitFor({ state: "attached", timeout: this.timeoutMs(step) });
+    await this.input.visual.highlight(page, checkboxInput);
+    const checked = await checkboxInput.isChecked().catch(() => false);
+    if (!checked) {
+      await checkboxInput.check({ force: true, timeout: this.timeoutMs(step) });
+    }
   }
 
   private async upload(page: Page, step: ScenarioStep): Promise<void> {
@@ -527,16 +702,52 @@ export class WebExecutor {
   }
 
   private async extract(page: Page, step: ScenarioStep): Promise<void> {
-    if (!step.variable) {
-      throw new Error("web_extract 必须指定 variable");
+    const variableName = step.variable ?? step.save_as;
+    if (!variableName) {
+      throw new Error("web_extract 必须指定 variable 或 save_as");
     }
-    const value = ((await (await this.locator(page, step)).textContent({ timeout: this.timeoutMs(step) })) ?? "").trim();
-    this.input.context.setVariable(step.variable, value);
+
+    let value: string;
+    if (step.target === "admin_message_content") {
+      const filterTarget = this.resolveAdminSmsFilterTarget(step);
+      value = await this.scanAdminSmsForVerificationCode(page, filterTarget);
+    } else {
+      value = ((await (await this.locator(page, step)).textContent({ timeout: this.timeoutMs(step) })) ?? "").trim();
+      const extractConfig = step.extract;
+      const pattern = extractConfig?.pattern;
+      if (pattern) {
+        const matched = value.match(new RegExp(pattern));
+        if (!matched) {
+          throw new Error(`提取失败：文本「${value}」未匹配 pattern ${pattern}`);
+        }
+        const groupIndex = extractConfig?.group ?? (matched.length > 1 ? 1 : 0);
+        value = matched[groupIndex] ?? matched[0] ?? "";
+      }
+    }
+
+    this.input.context.setVariable(this.resolve(variableName), value);
+  }
+
+  private static readonly REGISTER_PHONE_INPUT_SELECTOR = [
+    "[data-testid='register-input-phone'] .m-input-phone-number__phone-input input",
+    "[data-testid='register-input-phone'] input[name='phone']:not([readonly])",
+    ".phone-item .m-input-phone-number__phone-input input",
+    ".MazPhoneInputStyle .m-input-phone-number__phone-input input",
+    "input[name='phone']:not([readonly])"
+  ].join(", ");
+
+  private registerPhoneInputLocator(page: Page): Locator {
+    return page.locator(WebExecutor.REGISTER_PHONE_INPUT_SELECTOR).first();
   }
 
   private async locator(page: Page, step: ScenarioStep): Promise<Locator> {
     if (!step.target) {
       throw new Error(`${step.type} 必须指定 target`);
+    }
+    if (step.target === "register_input_phone") {
+      const phoneInput = this.registerPhoneInputLocator(page);
+      await phoneInput.waitFor({ state: "visible", timeout: this.timeoutMs(step) });
+      return phoneInput;
     }
     const definition = this.input.locations[step.target];
     if (definition) {
@@ -811,6 +1022,10 @@ export class WebExecutor {
 
   private timeoutMs(step: ScenarioStep): number {
     return step.timeout_ms ?? this.input.defaults?.step_timeout_ms ?? 10_000;
+  }
+
+  private async openPage(page: Page, step: ScenarioStep): Promise<void> {
+    await navigatePage(page, this.resolve(step.url), this.timeoutMs(step));
   }
 
   private async waitForNetworkIfNeeded(page: Page, step: ScenarioStep): Promise<void> {

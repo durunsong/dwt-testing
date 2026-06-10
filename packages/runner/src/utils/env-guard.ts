@@ -1,6 +1,41 @@
 import { ALLOWED_TEST_ENVS, BLOCKED_ENVS, type ScenarioCase, type TestEnv } from "@ai-e2e/shared";
 
-const productionHostPatterns = [/prod/i, /production/i, /\.com\.cn\b/i, /\.com\b/i];
+const LOCAL_HOSTNAMES = new Set(["localhost", "127.0.0.1", "::1"]);
+const TEST_SUBDOMAIN_LABELS = new Set(["local", "dev", "sit", "uat", "test", "staging", "pre", "qa", "preview"]);
+
+function isPrivateOrLocalHost(hostname: string): boolean {
+  if (LOCAL_HOSTNAMES.has(hostname)) {
+    return true;
+  }
+  if (/^\d{1,3}(\.\d{1,3}){3}$/.test(hostname)) {
+    return true;
+  }
+  return hostname.includes(":");
+}
+
+function isBlockedProductionHost(hostname: string): boolean {
+  const lower = hostname.toLowerCase();
+  if (isPrivateOrLocalHost(lower)) {
+    return false;
+  }
+
+  const [firstLabel] = lower.split(".");
+  if (TEST_SUBDOMAIN_LABELS.has(firstLabel)) {
+    return false;
+  }
+
+  if (/prod/i.test(lower) || /production/i.test(lower)) {
+    return true;
+  }
+  if (/\.com\.cn$/i.test(lower)) {
+    return true;
+  }
+  if (lower === "dowalet.com" || lower.endsWith(".dowalet.com")) {
+    return true;
+  }
+
+  return false;
+}
 
 export class EnvGuard {
   static assertRunnable(env: string, scenario?: ScenarioCase): asserts env is TestEnv {
@@ -24,10 +59,7 @@ export class EnvGuard {
       return;
     }
     const url = new URL(urlValue);
-    if (["localhost", "127.0.0.1", "::1"].includes(url.hostname)) {
-      return;
-    }
-    if (productionHostPatterns.some((pattern) => pattern.test(url.hostname))) {
+    if (isBlockedProductionHost(url.hostname)) {
       throw new Error(`疑似生产域名被拦截：${url.hostname}`);
     }
   }

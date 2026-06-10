@@ -48,6 +48,7 @@ export async function buildDoctorReport(input: DoctorInput): Promise<DoctorRepor
 
   addAiConfigCheck(items, env);
   addLoginConfigCheck(items, env);
+  await addFlowEnvConfigCheck(items, input.rootDir, env);
 
   return {
     ok: !items.some((item) => item.status === "error"),
@@ -95,6 +96,37 @@ function addLoginConfigCheck(items: DoctorItem[], env: NodeJS.ProcessEnv): void 
   items.push(missing.length
     ? warning("login_url_missing", `登录入口未完整配置：缺少 ${missing.join(", ")}；相关 Web 用例预检会失败`)
     : pass("login_url", "用户端和后台登录入口已配置"));
+}
+
+async function addFlowEnvConfigCheck(items: DoctorItem[], rootDir: string, env: NodeJS.ProcessEnv): Promise<void> {
+  const envRefs = await collectScenarioEnvRefs(rootDir);
+  if (!envRefs.length) {
+    return;
+  }
+
+  const missing = envRefs.filter((key) => !env[key]);
+  items.push(missing.length
+    ? warning("flow_env_missing", `当前流程引用的环境变量未完整配置：缺少 ${missing.join(", ")}`)
+    : pass("flow_env", `当前流程引用的 ${envRefs.length} 个环境变量已配置`));
+}
+
+async function collectScenarioEnvRefs(rootDir: string): Promise<string[]> {
+  const scenarioDir = path.resolve(rootDir, "cases", "scenario");
+  const files = await fs.readdir(scenarioDir).catch(() => []);
+  const refs = new Set<string>();
+
+  await Promise.all(files
+    .filter((file) => file.endsWith(".yaml") || file.endsWith(".yml"))
+    .map(async (file) => {
+      const content = await fs.readFile(path.resolve(scenarioDir, file), "utf8");
+      for (const match of content.matchAll(/\$\{env\.([A-Za-z_][A-Za-z0-9_]*)\}/g)) {
+        if (match[1]) {
+          refs.add(match[1]);
+        }
+      }
+    }));
+
+  return [...refs].sort();
 }
 
 function fileCode(file: string): string {

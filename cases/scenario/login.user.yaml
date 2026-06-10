@@ -23,6 +23,11 @@ steps:
     type: web_open
     session: user
     url: "${session.login_url}"
+  - step_id: user_wait_login_page
+    name: 等待登录页加载
+    type: web_wait_element
+    session: user
+    target: login_page_title
   - step_id: user_login
     name: user 登录
     type: flow_login

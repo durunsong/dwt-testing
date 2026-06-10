@@ -75,7 +75,13 @@ export interface ScenarioStep {
   continue_on_failure?: boolean;
   username?: string;
   password?: string;
+  filter_target?: string;
   file?: string;
+  extract?: {
+    type?: string;
+    pattern?: string;
+    group?: number;
+  };
 }
 
 export interface StepResult {

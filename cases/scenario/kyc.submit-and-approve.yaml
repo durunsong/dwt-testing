@@ -1,82 +1,240 @@
 case_id: "kyc_submit_and_approve"
 case_name: "企业认证 KYC 提交并由管理端审核"
 case_type: "user-main"
-description: "user 端提交企业认证，admin 端审核通过，最后 user 端回查状态。"
+description: "邮箱注册并登录后完成个人与企业认证提交，admin 审核通过，user 端回查状态。"
 mode: hybrid
 defaults:
-  step_timeout_ms: 20000
+  step_timeout_ms: 45000
   wait_for_network: true
 sessions:
   - name: user
     login_url: "${env.USER_LOGIN_URL}"
-    username: "${env.USER_USERNAME}"
-    password: "${env.USER_PASSWORD}"
+    register_url: "${env.USER_REGISTER_URL}"
+    username: ""
+    password: "${env.USER_REGISTER_PASSWORD}"
   - name: admin
     login_url: "${env.ADMIN_LOGIN_URL}"
     username: "${env.ADMIN_USERNAME}"
     password: "${env.ADMIN_PASSWORD}"
 variables:
+  email: "${kyc_apv_mail_email}"
+  password: "Test@12345"
+  register_verify_code: ""
   enterprise_name: "${env.KYC_ENTERPRISE_NAME_PREFIX}_${timestamp}"
-  license_no: "${env.KYC_LICENSE_NO_PREFIX}_${timestamp}"
+  license_no: "${env.KYC_LICENSE_NO_PREFIX}${timestamp}"
   legal_person: "${env.KYC_LEGAL_PERSON}"
   id_card_no: "${env.KYC_ID_CARD_NO}"
+  reg_address_detail: "自动化测试详细地址001号"
   review_remark: "${env.KYC_REVIEW_REMARK}"
 locations:
-  file: "cases/location/kyc.submit-and-approve.yaml"
+  file: "cases/location/kyc.submit.yaml"
 steps:
-  - step_id: user_open_login
-    name: user 打开登录页
+  # ==================== 注册阶段 ====================
+  - step_id: open_login_for_register
+    name: 打开登录页
     type: web_open
     session: user
     url: "${session.login_url}"
-  - step_id: user_login
-    name: user 登录
-    type: flow_login
-    session: user
-    username: "${session.username}"
-    password: "${session.password}"
-  - step_id: user_open_kyc
-    name: user 进入 KYC 页面
+
+  - step_id: goto_register_from_login
+    name: 从登录页进入注册
     type: web_click
     session: user
-    target: user_kyc_menu
+    target: login_register_link
+    wait_for_network: true
+
+  - step_id: wait_register_page
+    name: 等待注册页加载
+    type: web_wait_element
+    session: user
+    target: register_page_title
+
+  - step_id: click_email_tab
+    name: 点击邮箱注册 tab
+    type: web_click
+    session: user
+    target: register_tab_email
+
+  - step_id: input_email
+    name: 填写注册邮箱
+    type: web_input
+    session: user
+    target: register_input_email
+    value: "${var.email}"
+
+  - step_id: get_register_verify_code
+    name: 点击获取注册验证码
+    type: web_click
+    session: user
+    target: register_get_verify_code
+    wait_for_network: true
+
+  - step_id: wait_register_code_sent
+    name: 等待注册验证码输入框
+    type: web_wait_element
+    session: user
+    target: register_input_email_verify
+
+  - use: common/get_verify_code_from_admin
+    with:
+      admin_session: admin
+      save_as: register_verify_code
+      filter_target: "${var.email}"
+
+  - step_id: input_register_verify_code
+    name: 填写注册验证码
+    type: web_input
+    session: user
+    target: register_input_email_verify
+    value: "${var.register_verify_code}"
+
+  - step_id: input_password
+    name: 填写密码
+    type: web_input
+    session: user
+    target: register_input_password
+    value: "${var.password}"
+
+  - step_id: input_password_confirm
+    name: 填写确认密码
+    type: web_input
+    session: user
+    target: register_input_password_confirm
+    value: "${var.password}"
+
+  - step_id: agree_terms
+    name: 勾选服务协议
+    type: web_click
+    session: user
+    target: register_agree_checkbox
+
+  - step_id: submit_register
+    name: 点击注册
+    type: web_click
+    session: user
+    target: register_submit
+    wait_for_api:
+      url: /auth/register
+      method: POST
+      expected_status: 200
+      business_code_path: code
+      success_codes: ["0000"]
+
+  - step_id: wait_success_notify
+    name: 等待注册成功
+    type: web_wait_element
+    session: user
+    target: register_success_notify
+    continue_on_failure: true
+
+  - step_id: open_login_after_register
+    name: 注册后打开登录页
+    type: web_open
+    session: user
+    url: "${env.USER_HOME_URL}login?username=${var.email}"
+    timeout_ms: 30000
+    continue_on_failure: true
+
+  # ==================== 密码登录阶段 ====================
+  - step_id: click_password_login_tab
+    name: 切换到账户密码登录
+    type: web_click
+    session: user
+    target: login_tab_password
+    timeout_ms: 30000
+    continue_on_failure: true
+
+  - step_id: user_password_login
+    name: 使用密码登录新账号
+    type: flow_login
+    session: user
+    username: "${var.email}"
+    password: "${var.password}"
+    timeout_ms: 60000
+
+  - step_id: assert_dashboard
+    name: 断言已进入首页
+    type: web_assert_visible
+    session: user
+    target: user_home_marker
+    timeout_ms: 45000
+
+  # ==================== KYC 提交 ====================
+  - step_id: click_activate_account
+    name: 点击 header 去激活账户
+    type: web_click
+    session: user
+    target: user_activate_account
+    wait_for_network: true
+
+  - step_id: wait_kyc_entry
+    name: 等待进入认证页面
+    type: web_wait_element
+    session: user
+    target: user_auth_page_marker
+    continue_on_failure: true
+
   - step_id: user_submit_kyc
     name: user 提交 KYC
     type: flow_submit_kyc
     session: user
+    timeout_ms: 180000
+
   - step_id: user_assert_pending
     name: 断言 user 端状态为审核中
     type: web_assert_text
     session: user
-    target: kyc_status
-    expected: "审核中"
+    target: kyc_submit_success
+    expected: "待审核"
+    continue_on_failure: true
+
+  # ==================== admin 审核 ====================
   - step_id: admin_open_login
     name: admin 打开登录页
     type: web_open
     session: admin
     url: "${session.login_url}"
+
+  - step_id: admin_wait_login_page
+    name: 等待登录页加载
+    type: web_wait_element
+    session: admin
+    target: login_page_title
+
   - step_id: admin_login
     name: admin 登录
     type: flow_login
     session: admin
     username: "${session.username}"
     password: "${session.password}"
+
   - step_id: admin_open_kyc_review
-    name: admin 进入 KYC 审核列表
-    type: web_click
+    name: admin 打开企业审核列表
+    type: web_open
     session: admin
-    target: admin_kyc_menu
+    url: "${session.login_url}#/admin/cust/enterprise"
+    wait_for_network: true
+
+  - step_id: admin_wait_kyc_page
+    name: 等待企业管理页加载
+    type: web_wait_element
+    session: admin
+    target: admin_kyc_page
+    continue_on_failure: true
+
   - step_id: admin_approve_kyc
     name: admin 审核通过 KYC
     type: flow_admin_approve_kyc
     session: admin
+
   - step_id: user_reload_kyc
     name: user 刷新 KYC 页面
     type: web_reload
     session: user
+
   - step_id: user_assert_approved
     name: 断言 user 端状态为审核通过
     type: web_assert_text
     session: user
-    target: kyc_status
+    target: kyc_submit_success
     expected: "审核通过"

@@ -1,0 +1,162 @@
+case_id: "register_phone_login"
+case_name: "手机号注册并密码登录"
+case_type: "user-main"
+description: "用户在注册页选择手机号注册，填写手机号和验证码后设置密码完成注册，等待倒计时跳转后在登录页用密码登录新账号。手机号通过 139 + 时间戳后 8 位自动生成，每次运行自动更换。"
+mode: hybrid
+defaults:
+  step_timeout_ms: 30000
+  wait_for_network: true
+sessions:
+  - name: user
+    login_url: "${env.USER_LOGIN_URL}"
+    register_url: "${env.USER_REGISTER_URL}"
+    username: ""
+    password: "${env.USER_REGISTER_PASSWORD}"
+  - name: admin
+    login_url: "${env.ADMIN_LOGIN_URL}"
+    username: "${env.ADMIN_USERNAME}"
+    password: "${env.ADMIN_PASSWORD}"
+variables:
+  phone: "139${timestamp8}"
+  password: "Test@12345"
+  verify_code: ""
+locations:
+  file: "cases/location/register.user.yaml"
+steps:
+  - step_id: open_login
+    name: 打开登录页
+    type: web_open
+    session: user
+    url: "${session.login_url}"
+
+  - step_id: goto_register_from_login
+    name: 从登录页进入注册
+    type: web_click
+    session: user
+    target: login_register_link
+
+  - step_id: wait_register_page
+    name: 等待注册页加载
+    type: web_wait_element
+    session: user
+    target: register_page_title
+
+  # 步骤1: 点击手机号注册tab
+  - step_id: click_phone_tab
+    name: 点击手机号注册tab
+    type: web_click
+    session: user
+    target: register_tab_phone
+
+  # 步骤2: 填写手机号（Maz 组件需触发 input/change 才会写入 mobileNo 并标记 isValid）
+  - step_id: input_phone
+    name: 填写注册手机号
+    type: web_input
+    session: user
+    target: register_input_phone
+    value: "${var.phone}"
+
+  # 步骤4: 点击获取验证码
+  - step_id: get_verify_code
+    name: 点击获取验证码
+    type: web_click
+    session: user
+    target: register_get_verify_code
+    wait_for_network: true
+
+  # 步骤5: 等待验证码到达
+  - step_id: wait_code_sent
+    name: 等待验证码发送
+    type: web_wait_element
+    session: user
+    target: register_input_phone_verify
+
+  # 步骤6: admin 登录并获取验证码
+  - use: common/get_verify_code_from_admin
+    with:
+      admin_session: admin
+      save_as: verify_code
+      filter_target: "${var.phone}"
+
+  # 步骤7: 回到用户 session，填写验证码
+  - step_id: input_verify_code
+    name: 填写验证码
+    type: web_input
+    session: user
+    target: register_input_phone_verify
+    value: "${var.verify_code}"
+
+  # 步骤8: 填写密码
+  - step_id: input_password
+    name: 填写密码
+    type: web_input
+    session: user
+    target: register_input_password
+    value: "${var.password}"
+
+  # 步骤9: 填写确认密码
+  - step_id: input_password_confirm
+    name: 填写确认密码
+    type: web_input
+    session: user
+    target: register_input_password_confirm
+    value: "${var.password}"
+
+  # 步骤10: 勾选服务协议
+  - step_id: agree_terms
+    name: 勾选服务协议
+    type: web_click
+    session: user
+    target: register_agree_checkbox
+
+  # 步骤11: 点击注册
+  - step_id: submit_register
+    name: 点击注册
+    type: web_click
+    session: user
+    target: register_submit
+    wait_for_api:
+      url: /auth/register
+      method: POST
+      expected_status: 200
+      business_code_path: code
+      success_codes: ["0000"]
+
+  # 步骤12: 等待注册成功通知
+  - step_id: wait_success_notify
+    name: 等待注册成功通知
+    type: web_wait_element
+    session: user
+    target: register_success_notify
+    continue_on_failure: true
+
+  - step_id: open_login_after_register
+    name: 注册后打开登录页
+    type: web_open
+    session: user
+    url: "${env.USER_HOME_URL}login?username=${var.phone}"
+    timeout_ms: 30000
+    continue_on_failure: true
+
+  - step_id: click_password_login_tab
+    name: 切换到账户密码登录
+    type: web_click
+    session: user
+    target: login_tab_password
+    timeout_ms: 30000
+    continue_on_failure: true
+
+  - step_id: user_password_login
+    name: 使用密码登录新账号
+    type: flow_login
+    session: user
+    username: "${var.phone}"
+    password: "${var.password}"
+    timeout_ms: 60000
+
+  - step_id: assert_dashboard
+    name: 断言已跳转到 dashboard
+    type: web_assert_visible
+    session: user
+    target: user_home_marker
+    timeout_ms: 45000

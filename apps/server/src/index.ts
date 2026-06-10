@@ -1,6 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
-import dotenv from "dotenv";
+import { parseEnvFileContent } from "@ai-e2e/shared";
 import Fastify, { type FastifyInstance } from "fastify";
 import { loadPlatformConfig, type PlatformConfig, ScenarioOrchestrator } from "@ai-e2e/runner";
 import { registerAiRoutes } from "./routes/ai.routes";
@@ -43,7 +43,7 @@ export interface StartedServer {
 
 export async function createServer(options: CreateServerOptions): Promise<FastifyInstance> {
   const rootDir = path.resolve(options.rootDir);
-  dotenv.config({ path: path.resolve(rootDir, ".env") });
+  loadEnvFileIntoProcess(path.resolve(rootDir, ".env"));
   const platformConfig = loadPlatformConfig(rootDir);
 
   const app = Fastify({ logger: options.logger ?? true });
@@ -146,6 +146,16 @@ function resolveCorsOrigin(origin: string | undefined, allowedOrigins: string[])
     return origin;
   }
   return undefined;
+}
+
+function loadEnvFileIntoProcess(filePath: string): void {
+  if (!fs.existsSync(filePath)) {
+    return;
+  }
+  const content = fs.readFileSync(filePath, "utf8");
+  for (const [key, value] of parseEnvFileContent(content)) {
+    process.env[key] = value;
+  }
 }
 
 function getErrorMessage(error: unknown): string {

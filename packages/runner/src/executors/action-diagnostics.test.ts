@@ -1,6 +1,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { buildInputValueDiagnostic, isProtectedInputTarget } from "./action-diagnostics";
+import {
+  buildInputValueDiagnostic,
+  isProtectedInputTarget,
+  isPhoneInputTarget,
+  normalizePhoneInputValue
+} from "./action-diagnostics";
 
 test("keeps login account values readable for AI parameter analysis", () => {
   const diagnostic = buildInputValueDiagnostic({
@@ -57,4 +62,23 @@ test("keeps non-sensitive form values readable for failure diagnosis", () => {
   assert.equal(diagnostic.expectedValue, "100");
   assert.equal(diagnostic.actualValue, "10");
   assert.equal(diagnostic.matched, false);
+});
+
+test("treats formatted register phone values as equivalent", () => {
+  assert.equal(isPhoneInputTarget("register_input_phone"), true);
+  assert.equal(normalizePhoneInputValue("139 1011 5242"), "13910115242");
+
+  const diagnostic = buildInputValueDiagnostic({
+    phase: "before_click",
+    stepId: "submit_register",
+    stepName: "点击注册",
+    stepType: "web_click",
+    target: "register_input_phone",
+    expectedValue: "13910115242",
+    actualValue: "139 1011 5242"
+  });
+
+  assert.equal(diagnostic.matched, true);
+  assert.equal(diagnostic.expectedValue, "13910115242");
+  assert.equal(diagnostic.actualValue, "139 1011 5242");
 });

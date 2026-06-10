@@ -41,8 +41,23 @@ export interface TrackedInput {
 
 const protectedInputPattern = /(?:password|passwd|pwd|token|secret|cookie|authorization|api[_-]?key|access[_-]?key|密码|令牌|密钥)/i;
 
+export function isPhoneInputTarget(target: string | undefined): boolean {
+  return target === "register_input_phone";
+}
+
+/** Maz 手机号组件会在展示层插入空格，比较时应忽略空白与连字符。 */
+export function normalizePhoneInputValue(value: string): string {
+  return value.replace(/[\s-]/g, "");
+}
+
 export function buildInputValueDiagnostic(input: BuildInputValueDiagnosticInput): InputValueDiagnostic {
   const protectedValue = isProtectedInputTarget(input.target);
+  const comparableExpected = isPhoneInputTarget(input.target)
+    ? normalizePhoneInputValue(input.expectedValue)
+    : input.expectedValue;
+  const comparableActual = isPhoneInputTarget(input.target)
+    ? normalizePhoneInputValue(input.actualValue)
+    : input.actualValue;
   const base = {
     kind: "input_value" as const,
     phase: input.phase,
@@ -51,7 +66,7 @@ export function buildInputValueDiagnostic(input: BuildInputValueDiagnosticInput)
     stepType: input.stepType,
     target: input.target,
     protected: protectedValue,
-    matched: input.expectedValue === input.actualValue,
+    matched: comparableExpected === comparableActual,
     checkedAt: input.checkedAt ?? new Date().toISOString()
   };
 

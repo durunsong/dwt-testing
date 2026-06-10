@@ -1,47 +1,69 @@
+# admin 登录与个人资料编辑定位
+# 优先级: data-testid -> placeholder -> text -> role -> css
+
+login_page_title:
+  testId: "admin-login-page"
+  fallback:
+    - text: "登录你的全球收款账户"
+    - text: "账户密码登录"
+    - placeholder: "请输入您的手机号或邮箱"
+
 admin_login_username:
   testId: "admin-login-username"
   fallback:
     - placeholder: "请输入账号"
     - placeholder: "请输入您的手机号或邮箱"
     - name: "username"
+
 admin_login_password:
   testId: "admin-login-password"
   fallback:
     - placeholder: "请输入密码"
     - placeholder: "请输入您的登录密码"
     - name: "password"
+
 admin_login_submit:
   testId: "admin-login-submit"
   fallback:
     - role: "button"
       name: "登录"
     - text: "登录"
+
 admin_home_marker:
   testId: "admin-home"
   fallback:
     - text: "首页"
     - text: "控制台"
+
 admin_avatar_upload:
+  testId: "admin-avatar-upload"
   fallback:
     - css: ".edit-form .image input[type='file']"
     - css: ".img-picker input[type='file']"
-    - xpath: "//*[normalize-space()='上传头像']/ancestor::*[contains(@class,'form-item') or contains(@class,'el-form-item')][1]//input[@type='file']"
+
 admin_profile_username:
+  testId: "admin-profile-username"
   fallback:
     - css: "input[name='username']"
-    - xpath: "//input[@name='username']"
     - xpath: "//*[normalize-space()='用户名称']/ancestor::*[contains(@class,'form-item') or contains(@class,'el-form-item')][1]//input[not(@type='hidden')]"
+
 admin_profile_password:
+  testId: "admin-profile-password"
   fallback:
     - css: "input[type='password']"
-    - xpath: "//input[@type='password']"
     - xpath: "//*[normalize-space()='登录密码']/ancestor::*[contains(@class,'form-item') or contains(@class,'el-form-item')][1]//input[not(@type='hidden')]"
+
 admin_profile_save:
+  testId: "admin-profile-save"
   fallback:
     - role: "button"
       name: "保存"
     - text: "保存"
+
 admin_profile_success_message:
+  testId: "admin-profile-success-message"
   fallback:
+    - css: ".el-notification .el-notification__title"
+    - css: ".el-message--success"
     - text: "修改成功"
     - text: "保存成功"

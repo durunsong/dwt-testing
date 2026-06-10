@@ -1,41 +1,56 @@
+# 用户端登录定位
+# 优先级: data-testid -> placeholder -> text -> role
+
+login_page_title:
+  testId: "login-page"
+  fallback:
+    - text: "登录你的全球收款账户"
+    - text: "账户密码登录"
+    - placeholder: "请输入您的手机号或邮箱"
+
 user_login_username:
   testId: "user-login-username"
   fallback:
     - placeholder: "请输入账号"
     - placeholder: "请输入您的手机号或邮箱"
     - name: "username"
+
 user_login_password:
   testId: "user-login-password"
   fallback:
     - placeholder: "请输入密码"
     - placeholder: "请输入您的登录密码"
     - name: "password"
+
 user_login_submit:
   testId: "user-login-submit"
   fallback:
     - role: "button"
       name: "登录"
     - text: "登录"
+
 user_home_marker:
   testId: "user-home"
   fallback:
+    - text: "资产余额"
+    - text: "欢迎"
+    - text: "欢迎进入 Dowalet"
     - text: "首页"
     - text: "工作台"
+
 admin_login_username:
   testId: "admin-login-username"
   fallback:
     - placeholder: "请输入账号"
-    - placeholder: "请输入您的手机号或邮箱"
     - name: "username"
+
 admin_login_password:
   testId: "admin-login-password"
   fallback:
     - placeholder: "请输入密码"
-    - placeholder: "请输入您的登录密码"
     - name: "password"
+
 admin_login_submit:
   testId: "admin-login-submit"
   fallback:
-    - role: "button"
-      name: "登录"
     - text: "登录"

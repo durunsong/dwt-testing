@@ -1,7 +1,6 @@
 import fs from "node:fs/promises";
 import path from "node:path";
-import dotenv from "dotenv";
-import { ALLOWED_TEST_ENVS, type TestEnv } from "@ai-e2e/shared";
+import { ALLOWED_TEST_ENVS, parseEnvFileContent, serializeEnvValue, type TestEnv } from "@ai-e2e/shared";
 
 export interface EnvVariable {
   key: string;
@@ -190,17 +189,17 @@ export class EnvConfigService {
   }
 
   private parseEnvContent(content: string): { variables: EnvVariable[]; values: Map<string, string> } {
-    const parsed = dotenv.parse(content);
+    const parsed = parseEnvFileContent(content);
     const comments = collectComments(content);
     const variables = this.normalizeVariables(
-      Object.entries(parsed).map(([key, value]) => ({
+      [...parsed.entries()].map(([key, value]) => ({
         key,
         value,
         comment: comments.get(key)
       }))
     );
 
-    return { variables, values: new Map(Object.entries(parsed)) };
+    return { variables, values: parsed };
   }
 
   private normalizeVariables(variables: Array<Pick<EnvVariable, "key" | "value" | "comment">>): EnvVariable[] {
@@ -266,12 +265,6 @@ function collectComments(content: string): Map<string, string> {
     }
   }
   return comments;
-}
-
-function serializeEnvValue(value: string): string {
-  if (value === "") return "";
-  if (/^[^\s#"'`=]+$/.test(value)) return value;
-  return JSON.stringify(value);
 }
 
 function isSensitiveKey(key: string): boolean {

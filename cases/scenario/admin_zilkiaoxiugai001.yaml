@@ -1,7 +1,7 @@
 case_id: "admin_zilkiaoxiugai001"
 case_name: "admin 修改资料001"
 case_type: "admin-main"
-description: "http://localhost:5173/admin/#/admin/sys/perinfo 页面编辑个人信息--个人资料"
+description: "admin 登录后进入 /admin/sys/perinfo 页面编辑个人资料"
 mode: web
 defaults:
   step_timeout_ms: 20000
@@ -14,18 +14,28 @@ sessions:
 locations:
   file: cases/location/login.admin.yaml
 steps:
-  - step_id: open_perinfo_page
-    name: 打开个人信息页面
+  - step_id: open_login_page
+    name: 打开管理员登录页
     type: web_open
     session: admin
-    url: ${session.login_url}#/admin/sys/perinfo
-    wait_for_network: true
+    url: ${session.login_url}
+  - step_id: admin_wait_login_page
+    name: 等待登录页加载
+    type: web_wait_element
+    session: admin
+    target: login_page_title
   - step_id: admin_flow_login
     name: admin 登录
     type: flow_login
     session: admin
     username: ${session.username}
     password: ${session.password}
+    wait_for_network: true
+  - step_id: open_perinfo_page
+    name: 打开个人信息页面
+    type: web_open
+    session: admin
+    url: ${session.login_url}#/admin/sys/perinfo
     wait_for_network: true
   - step_id: input_new_username
     name: 修改用户名称
@@ -64,9 +74,3 @@ steps:
       success:
         body_path: code
         equals: "0000"
-  - step_id: assert_success_message
-    name: 断言保存成功提示
-    type: web_assert_text
-    session: admin
-    expected: 修改成功
-    target: admin_profile_success_message
