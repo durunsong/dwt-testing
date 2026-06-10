@@ -169,6 +169,7 @@ pnpm dwt run <caseId|file> [--env=local|dev|sit] [--headless|--headed] [--no-env
 - `validate`：校验单个或全部 YAML 用例结构。
 - `preflight` / `plan`：执行运行前预检，不启动真实浏览器流程。
 - `run`：执行用例并生成日志、报告、截图和 trace。
+- 未指定 `--env` 时默认使用 `sit`，并加载 `.env` + `.env.sit`。
 - `--no-env-file`：只读取当前进程或 CI 注入的环境变量，不加载本地 `.env*`。
 
 ### 开发与检查
@@ -275,12 +276,12 @@ steps:
 
 环境文件约定：
 
-| 环境 | 文件 |
-| --- | --- |
-| `local` | `.env` + `.env.local` |
-| `dev` | 通常使用 `.env`；CLI 也会尝试加载 `.env.dev` |
-| `sit` | `.env` + `.env.sit` |
-| `prod` | `.env` + `.env.prod` |
+| 环境 | 文件 | 说明 |
+| --- | --- | --- |
+| `sit`（默认） | `.env` + `.env.sit` | CLI、Web 控制台和 `.env.example` 的默认执行环境。 |
+| `local` | `.env` + `.env.local` | 本机联调覆盖项。 |
+| `dev` | `.env` + `.env.dev` | 开发环境。 |
+| `prod` | `.env` + `.env.prod` | 仅配置和构建识别，自动化运行会被拦截。 |
 
 `prod` 可用于配置和构建场景，但自动化运行守卫会阻止在 `prod/production` 环境或疑似生产域名执行流程。
 
@@ -365,8 +366,10 @@ pnpm desktop:dist:mac
 - [docs/ci.md](docs/ci.md)：CI 检查建议。
 - [docs/front-end.md](docs/front-end.md)：当前前端实现说明。
 - [docs/data-testid-guide.md](docs/data-testid-guide.md)：页面定位与 `data-testid` 建议。
-- [docs/ai-auto-test-context.md](docs/ai-auto-test-context.md)：AI 自动化测试平台上下文。
 - [docs/ai-prompt](docs/ai-prompt)：当前项目实现上下文。
+- [docs/ai-prompt-templates.md](docs/ai-prompt-templates.md)：AI 辅助生成用例与失败分析的提示词模板。
 - [docs/bailian.md](docs/bailian.md)：阿里云百炼模型接入示例。
-- [docs/roadmap.md](docs/roadmap.md)：已完成能力和后续建议。
-- [docs/shortest-compatibility.md](docs/shortest-compatibility.md)：与 Shortest 风格能力对照。
+- [docs/dowalet-regression-case-matrix.md](docs/dowalet-regression-case-matrix.md)：Dowalet 核心业务流程用例矩阵。
+- [docs/test-data-preparation.md](docs/test-data-preparation.md)：测试数据与环境配置说明。
+- [docs/assertion-and-exception-checklist.md](docs/assertion-and-exception-checklist.md)：页面断言与异常场景清单。
+- [docs/execution-and-demo-guide.md](docs/execution-and-demo-guide.md)：执行与演示说明。

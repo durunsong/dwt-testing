@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import type { TestEnv, VideoMode } from "../types/settings";
+import { DEFAULT_TEST_ENV, type TestEnv, type VideoMode } from "../types/settings";
 
 interface SettingState {
   env: TestEnv;
@@ -26,7 +26,7 @@ const storageKey = import.meta.env.VITE_APP_STORAGE_KEY || "dwt-testing-settings
 const saved = readSettings();
 
 export const useSettingStore = create<SettingState>((set) => ({
-  env: saved.env ?? "local",
+  env: saved.env ?? DEFAULT_TEST_ENV,
   headless: saved.headless ?? false,
   slowMo: saved.slowMo ?? 100,
   trace: saved.trace ?? true,

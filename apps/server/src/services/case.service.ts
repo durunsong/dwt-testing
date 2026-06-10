@@ -1,6 +1,7 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import { defaultPlatformConfig, megabytesToBytes, preflightScenarioContent, ScenarioOrchestrator, type PlatformConfig, validateScenarioContent, validateScenarioContentForRun } from "@ai-e2e/runner";
+import { DEFAULT_TEST_ENV } from "@ai-e2e/shared";
 import YAML from "yaml";
 import type { EnvConfigService } from "./env-config.service";
 import { normalizeTestEnv } from "./env-config.service";
@@ -499,7 +500,7 @@ export class CaseService {
     return validateScenarioContentForRun(this.rootDir, content);
   }
 
-  async preflightCase(caseId: string, env = process.env.TEST_ENV ?? "local") {
+  async preflightCase(caseId: string, env = process.env.TEST_ENV ?? DEFAULT_TEST_ENV) {
     const normalizedEnv = normalizeTestEnv(env);
     await this.envConfigService?.applyToProcess(normalizedEnv);
     const filePath = await this.findScenarioPath(caseId);
@@ -510,7 +511,7 @@ export class CaseService {
     });
   }
 
-  async preflightContent(content: string, env = process.env.TEST_ENV ?? "local") {
+  async preflightContent(content: string, env = process.env.TEST_ENV ?? DEFAULT_TEST_ENV) {
     const normalizedEnv = normalizeTestEnv(env);
     await this.envConfigService?.applyToProcess(normalizedEnv);
     return preflightScenarioContent({

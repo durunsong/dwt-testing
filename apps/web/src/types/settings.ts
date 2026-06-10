@@ -1,4 +1,6 @@
 export type TestEnv = "local" | "dev" | "sit" | "prod";
+
+export const DEFAULT_TEST_ENV: TestEnv = "sit";
 export type VideoMode = "off" | "on" | "retain-on-failure";
 
 export interface EnvVariable {

@@ -4,10 +4,11 @@
 
 ## 环境文件
 
-本地建议从 `.env.example` 复制生成 `.env`，按目标环境补齐：
+本地建议从 `.env.example` 复制生成 `.env`，按目标环境补齐。项目默认执行环境为 `sit`（`TEST_ENV=sit`），对应 `.env` + `.env.sit`：
 
 ```bash
 cp .env.example .env
+cp .env.example .env.sit
 ```
 
 执行 CI 或共享演示时，优先使用 Secret 注入，并在命令中追加 `--no-env-file`，避免读取本机私有配置。

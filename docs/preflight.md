@@ -5,11 +5,11 @@
 ## CLI
 
 ```bash
-pnpm dwt preflight login_user --env=local
-pnpm dwt plan cases/scenario/login.user.yaml --env=sit
+pnpm dwt preflight login_user
+pnpm dwt plan cases/scenario/login.user.yaml --env=local
 ```
 
-CLI 预检会默认读取 `.env` 和对应环境文件：`local` 读取 `.env` + `.env.local`，其他环境读取 `.env` + `.env.<env>`。如需只使用当前进程环境变量：
+CLI 未指定 `--env` 时默认使用 `sit`，并读取 `.env` + `.env.sit`；`local` 读取 `.env` + `.env.local`，其他环境读取 `.env` + `.env.<env>`。如需只使用当前进程环境变量：
 
 ```bash
 pnpm dwt preflight login_user --env=sit --no-env-file

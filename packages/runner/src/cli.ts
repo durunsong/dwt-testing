@@ -2,7 +2,7 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import process from "node:process";
-import { parseEnvFileContent } from "@ai-e2e/shared";
+import { DEFAULT_TEST_ENV, parseEnvFileContent } from "@ai-e2e/shared";
 import { preflightScenarioContent } from "./preflight/scenario-preflight";
 import { ScenarioLoader, validateScenarioContent, validateScenarioContentForRun } from "./loader/scenario-loader";
 import { ScenarioOrchestrator } from "./orchestrator/scenario-orchestrator";
@@ -220,7 +220,7 @@ async function loadEnvFiles(rootDir: string, env: string): Promise<void> {
 }
 
 function parseOptions(args: string[]): CliOptions {
-  const options: CliOptions = { env: "local" };
+  const options: CliOptions = { env: DEFAULT_TEST_ENV };
   for (const arg of args) {
     if (arg.startsWith("--env=")) {
       options.env = arg.slice("--env=".length);
@@ -256,8 +256,8 @@ function printHelp(): void {
     "Examples:",
     "  pnpm dwt doctor",
     "  pnpm dwt validate admin_profile_update",
-    "  pnpm dwt preflight login_user --env=sit",
-    "  pnpm dwt run login_user --env=sit --headless"
+    "  pnpm dwt preflight login_user",
+    "  pnpm dwt run login_user --headless"
   ].join("\n"));
 }
 
