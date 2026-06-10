@@ -9,6 +9,7 @@ export * from "./types/step";
 export * from "./schema/case.schema";
 export * from "./schema/location.schema";
 export * from "./schema/step.schema";
+export * from "./utils/env-file";
 export * from "./utils/mask";
 export * from "./utils/paths";
 export * from "./utils/variable-resolver";

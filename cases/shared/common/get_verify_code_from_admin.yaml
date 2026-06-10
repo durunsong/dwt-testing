@@ -1,0 +1,68 @@
+shared_id: common/get_verify_code_from_admin
+name: 从 admin 消息中心获取验证码
+description: admin 登录并进入消息中心，获取最新一条验证码消息内容，提取验证码数字并保存到变量。
+tags: [verify_code, admin, register]
+params:
+  admin_session:
+    required: true
+    description: admin session 名称
+  save_as:
+    required: true
+    description: 保存验证码的变量名
+  filter_target:
+    required: false
+    description: 按手机号或邮箱过滤短信记录，建议传 ${var.phone} 或 ${var.email}
+steps:
+  - step_id: admin_open_login
+    name: admin 打开登录页
+    type: web_open
+    session: "${admin_session}"
+    url: "${session.login_url}"
+  - step_id: admin_login
+    name: admin 登录
+    type: flow_login
+    session: "${admin_session}"
+    username: "${session.username}"
+    password: "${session.password}"
+  - step_id: admin_open_sms_log
+    name: admin 打开短信记录
+    type: web_open
+    session: "${admin_session}"
+    url: "${session.login_url}#/admin/sys/log?activeName=sms-record"
+    wait_for_network: true
+  - step_id: admin_wait_sms_tab
+    name: 等待短信记录页加载
+    type: web_wait_element
+    session: "${admin_session}"
+    target: admin_sms_record_tab
+  - step_id: admin_wait_message_list
+    name: 等待消息列表加载
+    type: web_wait_element
+    session: "${admin_session}"
+    target: admin_message_first_row
+  - step_id: admin_reload_sms_log
+    name: 刷新短信记录
+    type: web_reload
+    session: "${admin_session}"
+    wait_for_network: true
+  - step_id: admin_wait_message_list_after_reload
+    name: 等待短信列表刷新
+    type: web_wait_element
+    session: "${admin_session}"
+    target: admin_message_first_row
+  - step_id: admin_expand_first
+    name: 展开第一条消息
+    type: web_click
+    session: "${admin_session}"
+    target: admin_message_first_row
+    continue_on_failure: true
+  - step_id: admin_extract_code
+    name: 提取验证码
+    type: web_extract
+    session: "${admin_session}"
+    target: admin_message_content
+    variable: "${save_as}"
+    filter_target: "${filter_target}"
+    extract:
+      type: text
+      pattern: "(?:验证码[:：]\\s*)(\\d{4,8})"

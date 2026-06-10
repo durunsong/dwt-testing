@@ -7,7 +7,7 @@ export const scenarioSessionSchema = z.object({
   login_url: z.string().min(1),
   username: z.string().optional(),
   password: z.string().optional()
-});
+}).catchall(z.string().optional());
 
 export const scenarioCaseSchema = z.object({
   case_id: z.string().min(1),
@@ -25,5 +25,6 @@ export const scenarioCaseSchema = z.object({
   locations: z.object({
     file: z.string().min(1)
   }),
+  upload_slots: z.array(scenarioStepSchema).optional(),
   steps: z.array(scenarioStepSchema).min(1)
 });

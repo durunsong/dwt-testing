@@ -26,6 +26,12 @@ const waitForApiSchema = z.object({
   }).optional()
 });
 
+const extractSchema = z.object({
+  type: z.string().optional(),
+  pattern: z.string().min(1).optional(),
+  group: z.number().int().nonnegative().optional()
+}).optional();
+
 export const scenarioStepSchema = z.object({
   step_id: z.string().min(1),
   name: z.string().min(1),
@@ -56,5 +62,7 @@ export const scenarioStepSchema = z.object({
   continue_on_failure: z.boolean().optional(),
   username: z.string().optional(),
   password: z.string().optional(),
-  file: z.string().optional()
+  filter_target: z.string().optional(),
+  file: z.string().optional(),
+  extract: extractSchema
 });

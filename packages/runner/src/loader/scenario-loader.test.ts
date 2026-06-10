@@ -93,6 +93,30 @@ describe("ScenarioLoader compatibility", () => {
     assert.equal(result.data?.case_type, "smoke");
   });
 
+  it("preserves custom session fields used by session variables", () => {
+    const result = validateScenarioContent([
+      "case_id: register_case",
+      "case_name: Register Case",
+      "mode: web",
+      "sessions:",
+      "  - name: user",
+      "    login_url: \"${env.USER_LOGIN_URL}\"",
+      "    register_url: \"${env.USER_REGISTER_URL}\"",
+      "locations:",
+      "  file: cases/location/register.user.yaml",
+      "steps:",
+      "  - step_id: open_register",
+      "    name: open register",
+      "    type: web_open",
+      "    session: user",
+      "    url: \"${session.register_url}\"",
+      ""
+    ].join("\n"));
+
+    assert.equal(result.valid, true);
+    assert.equal(result.data?.sessions[0]?.register_url, "${env.USER_REGISTER_URL}");
+  });
+
   it("expands shared steps while loading runnable scenarios", async () => {
     const rootDir = await tempWorkspace();
     await fs.mkdir(path.join(rootDir, "cases", "scenario"), { recursive: true });

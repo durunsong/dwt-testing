@@ -1,10 +1,10 @@
-case_id: "kyc_submit"
-case_name: "KYC 提交流程"
+case_id: "register_email_verifycode_login"
+case_name: "邮箱注册并验证码登录"
 case_type: "user-main"
-description: "邮箱注册并验证码登录后，点击 header「去激活账户」，完成个人认证（如需）与企业认证全流程提交。"
+description: "用户在注册页选择邮箱注册完成注册，等待倒计时跳转后在登录页切换到验证码登录tab，获取登录验证码并登录新账号。"
 mode: hybrid
 defaults:
-  step_timeout_ms: 45000
+  step_timeout_ms: 30000
   wait_for_network: true
 sessions:
   - name: user
@@ -17,62 +17,15 @@ sessions:
     username: "${env.ADMIN_USERNAME}"
     password: "${env.ADMIN_PASSWORD}"
 variables:
-  email: "${kyc_mail_email}"
+  email: "${mail_email}"
   password: "Test@12345"
   register_verify_code: ""
   login_verify_code: ""
-  enterprise_name: "${env.KYC_ENTERPRISE_NAME_PREFIX}_${timestamp}"
-  license_no: "${env.KYC_LICENSE_NO_PREFIX}${timestamp}"
-  legal_person: "${env.KYC_LEGAL_PERSON}"
-  id_card_no: "${env.KYC_ID_CARD_NO}"
-  reg_address_detail: "自动化测试详细地址001号"
 locations:
-  file: "cases/location/kyc.submit.yaml"
-upload_slots:
-  - step_id: upload_user_auth_id
-    name: 上传个人认证证件照片
-    type: web_upload
-    session: user
-    target: user_auth_id_upload
-    file: "uploads/cases/kyc_submit/id-card-front.png"
-
-  - step_id: upload_business_license
-    name: 上传企业营业执照
-    type: web_upload
-    session: user
-    target: kyc_license_upload
-    file: "uploads/cases/kyc_submit/business-license.png"
-
-  - step_id: upload_office_scene
-    name: 上传企业办公场景
-    type: web_upload
-    session: user
-    target: kyc_office_upload
-    file: "uploads/cases/kyc_submit/office-scene.png"
-
-  - step_id: upload_boss_id_front
-    name: 上传法人身份证正面
-    type: web_upload
-    session: user
-    target: kyc_boss_id_front_upload
-    file: "uploads/cases/kyc_submit/id-card-front.png"
-
-  - step_id: upload_boss_id_back
-    name: 上传法人身份证背面
-    type: web_upload
-    session: user
-    target: kyc_boss_id_back_upload
-    file: "uploads/cases/kyc_submit/id-card-back.png"
-
-  - step_id: upload_boss_id_handheld
-    name: 上传法人手持身份证
-    type: web_upload
-    session: user
-    target: kyc_boss_id_handheld_upload
-    file: "uploads/cases/kyc_submit/id-card-handheld.png"
+  file: "cases/location/register.user.yaml"
 steps:
   # ==================== 注册阶段 ====================
-  - step_id: open_login_for_register
+  - step_id: open_login
     name: 打开登录页
     type: web_open
     session: user
@@ -83,7 +36,6 @@ steps:
     type: web_click
     session: user
     target: login_register_link
-    wait_for_network: true
 
   - step_id: wait_register_page
     name: 等待注册页加载
@@ -92,7 +44,7 @@ steps:
     target: register_page_title
 
   - step_id: click_email_tab
-    name: 点击邮箱注册 tab
+    name: 点击邮箱注册tab
     type: web_click
     session: user
     target: register_tab_email
@@ -112,11 +64,12 @@ steps:
     wait_for_network: true
 
   - step_id: wait_register_code_sent
-    name: 等待注册验证码输入框
+    name: 等待注册验证码发送
     type: web_wait_element
     session: user
     target: register_input_email_verify
 
+  # 获取注册验证码
   - use: common/get_verify_code_from_admin
     with:
       admin_session: admin
@@ -163,7 +116,7 @@ steps:
       success_codes: ["0000"]
 
   - step_id: wait_success_notify
-    name: 等待注册成功
+    name: 等待注册成功通知
     type: web_wait_element
     session: user
     target: register_success_notify
@@ -177,7 +130,6 @@ steps:
     timeout_ms: 30000
     continue_on_failure: true
 
-  # ==================== 密码登录阶段 ====================
   - step_id: click_password_login_tab
     name: 切换到账户密码登录
     type: web_click
@@ -195,36 +147,8 @@ steps:
     timeout_ms: 60000
 
   - step_id: assert_dashboard
-    name: 断言已进入首页
+    name: 断言已跳转到 dashboard
     type: web_assert_visible
     session: user
     target: user_home_marker
     timeout_ms: 45000
-
-  # ==================== KYC 激活与提交流程 ====================
-  - step_id: click_activate_account
-    name: 点击 header 去激活账户
-    type: web_click
-    session: user
-    target: user_activate_account
-    wait_for_network: true
-
-  - step_id: wait_kyc_entry
-    name: 等待进入认证页面
-    type: web_wait_element
-    session: user
-    target: user_auth_page_marker
-    continue_on_failure: true
-
-  - step_id: user_submit_kyc
-    name: 完成个人认证与企业认证提交
-    type: flow_submit_kyc
-    session: user
-    timeout_ms: 180000
-
-  - step_id: user_assert_pending
-    name: 断言提交成功进入待审核
-    type: web_assert_text
-    session: user
-    target: kyc_submit_success
-    expected: "待审核"

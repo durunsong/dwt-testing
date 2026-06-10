@@ -19,6 +19,11 @@ steps:
     type: web_open
     session: admin
     url: "${session.login_url}"
+  - step_id: admin_wait_login_page
+    name: 等待登录页加载
+    type: web_wait_element
+    session: admin
+    target: login_page_title
   - step_id: admin_login
     name: admin 登录
     type: flow_login

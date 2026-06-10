@@ -1,94 +1,217 @@
+# KYC 提交 + admin 审核定位
+# 优先级: data-testid -> placeholder -> text -> role
+
+login_page_title:
+  testId: "login-page"
+  fallback:
+    - text: "登录你的全球收款账户"
+    - text: "账户密码登录"
+    - placeholder: "请输入您的手机号或邮箱"
+
 user_login_username:
   testId: "user-login-username"
   fallback:
     - placeholder: "请输入账号"
     - placeholder: "请输入您的手机号或邮箱"
     - name: "username"
+
 user_login_password:
   testId: "user-login-password"
   fallback:
     - placeholder: "请输入密码"
     - placeholder: "请输入您的登录密码"
     - name: "password"
+
 user_login_submit:
   testId: "user-login-submit"
   fallback:
+    - role: "button"
+      name: "登录"
     - text: "登录"
+
+user_home_marker:
+  testId: "user-home"
+  fallback:
+    - text: "资产余额"
+    - text: "欢迎"
+    - text: "欢迎进入 Dowalet"
+    - text: "首页"
+    - text: "工作台"
+
 admin_login_username:
   testId: "admin-login-username"
   fallback:
     - placeholder: "请输入账号"
     - placeholder: "请输入您的手机号或邮箱"
     - name: "username"
+
 admin_login_password:
   testId: "admin-login-password"
   fallback:
     - placeholder: "请输入密码"
     - placeholder: "请输入您的登录密码"
     - name: "password"
+
 admin_login_submit:
   testId: "admin-login-submit"
   fallback:
+    - role: "button"
+      name: "登录"
     - text: "登录"
+
 user_kyc_menu:
   testId: "user-kyc-menu"
   fallback:
+    - text: "去新增企业认证"
+    - text: "新增企业"
     - text: "企业认证"
-    - text: "KYC"
+
+user_kyc_add_enter:
+  testId: "user-kyc-add-enter"
+  fallback:
+    - text: "新增企业"
+    - text: "去新增企业认证"
+    - role: "button"
+      name: "新增企业"
+
+user_company_page:
+  testId: "user-company-page"
+  fallback:
+    - text: "企业管理"
+    - text: "企业信息"
+    - text: "新增企业"
+
+kyc_step1_marker:
+  testId: "kyc-step1"
+  fallback:
+    - text: "企业信息"
+    - text: "企业认证流程"
+
 kyc_enterprise_name:
   testId: "kyc-enterprise-name"
   fallback:
+    - placeholder: "请填写企业中文名称"
     - placeholder: "请输入企业名称"
+
 kyc_license_no:
   testId: "kyc-license-no"
   fallback:
+    - placeholder: "一般为18或15位数字或字母"
     - placeholder: "请输入营业执照号"
+
 kyc_legal_person:
   testId: "kyc-legal-person"
   fallback:
+    - placeholder: "请填写姓名，以证件姓名为准"
     - placeholder: "请输入法人"
+
 kyc_id_card_no:
   testId: "kyc-id-card-no"
   fallback:
+    - placeholder: "请填写正确的证件号码"
     - placeholder: "请输入身份证号"
+
+kyc_license_upload:
+  testId: "kyc-license-upload"
+  fallback:
+    - css: "input[type='file'][name='license']"
+    - text: "统一社会信用代码证"
+    - text: "营业执照"
+
+kyc_office_upload:
+  testId: "kyc-office-upload"
+  fallback:
+    - css: "input[type='file'][name='office']"
+    - text: "企业办公场景"
+    - text: "办公场所"
+
+kyc_boss_id_front_upload:
+  testId: "kyc-boss-id-front-upload"
+  fallback:
+    - text: "头像页"
+
+kyc_boss_id_back_upload:
+  testId: "kyc-boss-id-back-upload"
+  fallback:
+    - text: "国徽页"
+
+kyc_boss_id_handheld_upload:
+  testId: "kyc-boss-id-handheld-upload"
+  fallback:
+    - text: "个人信息页"
+
+user_auth_id_upload:
+  testId: "user-auth-id-upload"
+  fallback:
+    - css: ".cert-photo-item input[type='file']"
+    - text: "证件照片"
+
+kyc_step1_next:
+  testId: "kyc-step1-next"
+  fallback:
+    - text: "下一步"
+
+kyc_step2_next:
+  testId: "kyc-step2-next"
+  fallback:
+    - text: "下一步"
+
 kyc_submit:
   testId: "kyc-submit"
   fallback:
+    - text: "提交申请"
     - text: "提交审核"
     - text: "提交"
+
 kyc_status:
   testId: "kyc-status"
   fallback:
     - text: "审核中"
+    - text: "待审核"
     - text: "审核通过"
+    - text: "APPLYING"
+
 admin_kyc_menu:
   testId: "admin-kyc-menu"
   fallback:
+    - text: "企业管理"
     - text: "企业认证审核"
-    - text: "KYC审核"
+    - text: "客户管理"
+
+admin_kyc_page:
+  testId: "admin-kyc-page"
+  fallback:
+    - text: "企业管理"
+
 admin_kyc_search_input:
   testId: "admin-kyc-search-input"
   fallback:
     - placeholder: "请输入企业名称"
-    - placeholder: "请输入申请单号"
+    - placeholder: "企业名称"
+
 admin_kyc_search_submit:
   testId: "admin-kyc-search-submit"
   fallback:
     - text: "搜索"
+
 admin_kyc_review_button:
   testId: "admin-kyc-review-button"
   fallback:
     - text: "审核"
+
 admin_kyc_review_remark:
   testId: "admin-kyc-review-remark"
   fallback:
     - placeholder: "请输入审核备注"
+
 admin_kyc_approve_button:
   testId: "admin-kyc-approve-button"
   fallback:
-    - text: "通过"
     - text: "审核通过"
+    - text: "通过"
+
 admin_kyc_confirm:
   testId: "admin-kyc-confirm"
   fallback:
     - text: "确认"
+    - text: "确定"

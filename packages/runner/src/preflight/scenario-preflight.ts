@@ -1,7 +1,7 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import YAML from "yaml";
-import { locationMapSchema, resolveVariables, type LocationMap, type RuntimeContextState, type ScenarioCase, type ScenarioStep } from "@ai-e2e/shared";
+import { DEFAULT_TEST_ENV, locationMapSchema, resolveVariables, type LocationMap, type RuntimeContextState, type ScenarioCase, type ScenarioStep } from "@ai-e2e/shared";
 import { EnvGuard } from "../utils/env-guard";
 import { validateScenarioContentForRun } from "../loader/scenario-loader";
 import { resolveUploadFilePath } from "../utils/upload-file";
@@ -37,7 +37,7 @@ export async function preflightScenarioContent(input: {
   content: string;
   env?: string;
 }): Promise<ScenarioPreflightResult> {
-  const env = input.env ?? process.env.TEST_ENV ?? "local";
+  const env = input.env ?? process.env.TEST_ENV ?? DEFAULT_TEST_ENV;
   const validation = await validateScenarioContentForRun(input.rootDir, input.content);
   const issues: PreflightIssue[] = validation.issues.map((issue) => ({
     severity: "error",
@@ -355,7 +355,7 @@ function createPreflightState(scenario: ScenarioCase): RuntimeContextState {
   const sessions = Object.fromEntries(scenario.sessions.map((session) => [session.name, session]));
   return {
     runId: "preflight",
-    env: process.env.TEST_ENV ?? "local",
+    env: process.env.TEST_ENV ?? DEFAULT_TEST_ENV,
     scenario,
     timestamp: "preflight",
     variables: scenario.variables ?? {},

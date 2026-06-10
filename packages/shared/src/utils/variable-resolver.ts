@@ -29,6 +29,12 @@ function resolveExpression(expression: string, state: RuntimeContextState, step?
   if (expression === "timestamp") {
     return state.timestamp;
   }
+  if (expression === "timestamp8") {
+    return state.timestamp.slice(-8);
+  }
+  if (expression === "mail_email" || expression === "kyc_mail_email" || expression === "kyc_apv_mail_email") {
+    return randomTestEmail();
+  }
   if (expression === "runId") {
     return state.runId;
   }
@@ -55,6 +61,24 @@ function readCurrentSession(state: RuntimeContextState, step?: ScenarioStep): Sc
     throw new Error(`解析 session 变量失败：未找到 ${step.session} 会话配置`);
   }
   return session;
+}
+
+/**
+ * 6 位数字 + 6 位小写字母 + @qq.com。
+ * 对齐后端 StringUtil.isLegalEmail（本地段仅 \w）与 SIT 常用测试邮箱域名。
+ */
+export function randomTestEmail(): string {
+  const digits = Array.from({ length: 6 }, () => Math.floor(Math.random() * 10)).join("");
+  const letters = Array.from({ length: 6 }, () => {
+    const code = 97 + Math.floor(Math.random() * 26);
+    return String.fromCharCode(code);
+  }).join("");
+  return `${digits}${letters}@qq.com`;
+}
+
+/** 与后端 StringUtil.isLegalEmail 一致：本地段仅字母数字下划线及 .-+ */
+export function matchesBackendLegalEmail(email: string): boolean {
+  return /^\w+([-+.]\w+)*@\w+([-.]\w+)*\.\w+([-.]\w+)*$/.test(email);
 }
 
 function readRequired(value: unknown, expression: string): string {

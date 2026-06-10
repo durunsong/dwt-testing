@@ -2,6 +2,7 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import process from "node:process";
+import { DEFAULT_TEST_ENV, parseEnvFileContent } from "@ai-e2e/shared";
 import { preflightScenarioContent } from "./preflight/scenario-preflight";
 import { ScenarioLoader, validateScenarioContent, validateScenarioContentForRun } from "./loader/scenario-loader";
 import { ScenarioOrchestrator } from "./orchestrator/scenario-orchestrator";
@@ -212,41 +213,14 @@ async function loadEnvFiles(rootDir: string, env: string): Promise<void> {
       continue;
     }
     const content = await fs.readFile(filePath, "utf8");
-    for (const [key, value] of parseEnvContent(content)) {
+    for (const [key, value] of parseEnvFileContent(content)) {
       process.env[key] = value;
     }
   }
 }
 
-function parseEnvContent(content: string): Array<[string, string]> {
-  const pairs: Array<[string, string]> = [];
-  for (const line of content.split(/\r?\n/)) {
-    const trimmed = line.trim();
-    if (!trimmed || trimmed.startsWith("#")) {
-      continue;
-    }
-    const separator = trimmed.indexOf("=");
-    if (separator <= 0) {
-      continue;
-    }
-    const key = trimmed.slice(0, separator).trim();
-    const value = unquoteEnvValue(trimmed.slice(separator + 1).trim());
-    if (/^[A-Za-z_][A-Za-z0-9_]*$/.test(key)) {
-      pairs.push([key, value]);
-    }
-  }
-  return pairs;
-}
-
-function unquoteEnvValue(value: string): string {
-  if ((value.startsWith("\"") && value.endsWith("\"")) || (value.startsWith("'") && value.endsWith("'"))) {
-    return value.slice(1, -1);
-  }
-  return value;
-}
-
 function parseOptions(args: string[]): CliOptions {
-  const options: CliOptions = { env: "local" };
+  const options: CliOptions = { env: DEFAULT_TEST_ENV };
   for (const arg of args) {
     if (arg.startsWith("--env=")) {
       options.env = arg.slice("--env=".length);
@@ -282,8 +256,8 @@ function printHelp(): void {
     "Examples:",
     "  pnpm dwt doctor",
     "  pnpm dwt validate admin_profile_update",
-    "  pnpm dwt preflight login_user --env=sit",
-    "  pnpm dwt run login_user --env=sit --headless"
+    "  pnpm dwt preflight login_user",
+    "  pnpm dwt run login_user --headless"
   ].join("\n"));
 }
 

@@ -4,6 +4,7 @@ import type { ScenarioStep } from "./step";
 export type ScenarioMode = "web" | "api" | "hybrid";
 
 export interface ScenarioSession {
+  [key: string]: string | undefined;
   name: SessionName;
   login_url: string;
   username?: string;
@@ -26,6 +27,7 @@ export interface ScenarioCase {
   locations: {
     file: string;
   };
+  upload_slots?: ScenarioStep[];
   steps: ScenarioStep[];
 }
 

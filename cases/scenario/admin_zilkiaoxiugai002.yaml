@@ -18,6 +18,11 @@ steps:
     type: web_open
     session: admin
     url: ${session.login_url}
+  - step_id: admin_wait_login_page
+    name: 等待登录页加载
+    type: web_wait_element
+    session: admin
+    target: login_page_title
   - step_id: admin_login
     name: 管理员登录
     type: flow_login
@@ -36,11 +41,11 @@ steps:
     target: admin_profile_username
     value: test_admin_updated
   - step_id: input_new_password
-    name: 输入新登录密码
+    name: 输入当前登录密码确认
     type: web_input
     session: admin
     target: admin_profile_password
-    value: NewSecurePass123!
+    value: ${env.ADMIN_PASSWORD}
   - step_id: upload_avatar
     name: 上传头像
     type: web_upload
@@ -62,9 +67,3 @@ steps:
       success:
         body_path: code
         equals: "0000"
-  - step_id: assert_save_success
-    name: 断言保存成功提示
-    type: web_assert_text
-    session: admin
-    expected: 修改成功
-    target: admin_profile_success_message

@@ -2,9 +2,9 @@ import { Select } from "antd";
 import type { TestEnv } from "../types/settings";
 
 const options: Array<{ label: string; value: TestEnv }> = [
+  { label: "sit", value: "sit" },
   { label: "local", value: "local" },
   { label: "dev", value: "dev" },
-  { label: "sit", value: "sit" },
   { label: "prod", value: "prod" }
 ];
 

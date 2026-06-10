@@ -56,6 +56,21 @@ test("EnvConfigService reads and saves raw env file content", async () => {
   assert.equal(process.env.USER_LOGIN_URL, "http://local.test");
 });
 
+test("EnvConfigService preserves hash routes in env urls", async () => {
+  const rootDir = await fs.mkdtemp(path.join(os.tmpdir(), "env-config-"));
+  await fs.writeFile(path.join(rootDir, ".env.example"), "USER_REGISTER_URL=\n", "utf8");
+  await fs.writeFile(
+    path.join(rootDir, ".env.sit"),
+    "USER_REGISTER_URL=https://sit.dowalet.com/user/#/register\n",
+    "utf8"
+  );
+
+  const service = new EnvConfigService(rootDir);
+  await service.applyToProcess("sit");
+
+  assert.equal(process.env.USER_REGISTER_URL, "https://sit.dowalet.com/user/#/register");
+});
+
 test("EnvConfigService imports env content over the saved environment file", async () => {
   const rootDir = await fs.mkdtemp(path.join(os.tmpdir(), "env-config-"));
   await fs.writeFile(path.join(rootDir, ".env.example"), "ADMIN_USERNAME=\nADMIN_PASSWORD=\nUSER_USERNAME=\nUSER_PASSWORD=\n", "utf8");

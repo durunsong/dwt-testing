@@ -1,4 +1,4 @@
-import { ALLOWED_TEST_ENVS, maskSensitive } from "@ai-e2e/shared";
+import { ALLOWED_TEST_ENVS, DEFAULT_TEST_ENV, maskSensitive } from "@ai-e2e/shared";
 
 export interface DbExecutorOptions {
   env: string;
@@ -18,7 +18,7 @@ type DbParam = string | number | boolean | Date | Buffer | null;
 
 export class DbExecutor {
   constructor(private readonly options: DbExecutorOptions = {
-    env: process.env.TEST_ENV ?? "local",
+    env: process.env.TEST_ENV ?? DEFAULT_TEST_ENV,
     enabled: process.env.DB_ENABLED === "true"
   }) {}
 

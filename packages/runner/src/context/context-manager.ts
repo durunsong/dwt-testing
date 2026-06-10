@@ -1,4 +1,4 @@
-import { resolveVariables, type ScenarioCase, type ScenarioSession } from "@ai-e2e/shared";
+import { resolveRecordValues, resolveVariables, type ScenarioCase, type ScenarioSession } from "@ai-e2e/shared";
 import { RuntimeContext } from "./runtime-context";
 
 export class ContextManager {
@@ -15,12 +15,7 @@ export class ContextManager {
     seed.state.sessions = Object.fromEntries(
       scenario.sessions.map((session) => [
         session.name,
-        {
-          ...session,
-          login_url: resolveVariables(session.login_url, seed.state),
-          username: session.username ? resolveVariables(session.username, seed.state) : undefined,
-          password: session.password ? resolveVariables(session.password, seed.state) : undefined
-        }
+        resolveRecordValues(session, seed.state)
       ])
     );
 
