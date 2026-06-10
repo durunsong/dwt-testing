@@ -18,7 +18,7 @@ sessions:
     password: "${env.ADMIN_PASSWORD}"
 variables:
   email: "${mail_email}"
-  password: "Test@12345"
+  password: "${env.USER_REGISTER_PASSWORD}"
   register_verify_code: ""
   login_verify_code: ""
 locations:

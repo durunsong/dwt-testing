@@ -18,7 +18,7 @@ sessions:
     password: "${env.ADMIN_PASSWORD}"
 variables:
   email: "${kyc_apv_mail_email}"
-  password: "Test@12345"
+  password: "${env.USER_REGISTER_PASSWORD}"
   register_verify_code: ""
   enterprise_name: "${env.KYC_ENTERPRISE_NAME_PREFIX}_${timestamp}"
   license_no: "${env.KYC_LICENSE_NO_PREFIX}${timestamp}"
