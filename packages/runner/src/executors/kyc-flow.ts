@@ -159,6 +159,12 @@ async function inputValueByTestId(page: Page, testId: string): Promise<string> {
   return (await target.inputValue().catch(() => "")).trim();
 }
 
+async function inputValueNearLabel(page: Page, labelText: string): Promise<string> {
+  const formItem = page.locator(".el-form-item").filter({ hasText: labelText }).first();
+  if (!(await formItem.isVisible().catch(() => false))) return "";
+  return (await formItem.locator("input, textarea").last().inputValue().catch(() => "")).trim();
+}
+
 async function ensureCheckboxCheckedByTestId(page: Page, testId: string): Promise<boolean> {
   const root = byTestId(page, testId);
   if (!(await root.isVisible().catch(() => false))) return false;
@@ -183,11 +189,43 @@ async function ensureCheckboxCheckedByTestId(page: Page, testId: string): Promis
   return true;
 }
 
+async function ensureCheckboxCheckedNearLabel(page: Page, labelText: string, checkboxText: string): Promise<boolean> {
+  const formItem = page.locator(".el-form-item").filter({ hasText: labelText }).first();
+  const checkbox = formItem.locator(".el-checkbox").filter({ hasText: checkboxText }).first();
+  if (!(await checkbox.isVisible().catch(() => false))) return false;
+  const checked = await checkbox.evaluate((el) => {
+    const input = el.querySelector("input[type='checkbox']") as HTMLInputElement | null;
+    if (input) return input.checked;
+    return el.classList.contains("is-checked") || !!el.querySelector(".is-checked");
+  }).catch(() => false);
+  if (!checked) {
+    const label = checkbox.locator(".el-checkbox__label").first();
+    if (await label.isVisible().catch(() => false)) {
+      await label.click({ force: true });
+    } else {
+      await checkbox.click({ force: true });
+    }
+    await page.waitForTimeout(500);
+  }
+  return true;
+}
+
 async function fillField(page: Page, placeholder: string, value: string): Promise<void> {
   if (!value) return;
   const input = page.getByPlaceholder(placeholder).first();
   if (!(await input.isVisible().catch(() => false))) return;
   await input.fill(value);
+}
+
+async function fillFirstInputNumberIfEmpty(page: Page, value: string): Promise<boolean> {
+  const input = page.locator(".el-input-number input").first();
+  if (!(await input.isVisible().catch(() => false))) return false;
+  const current = await input.inputValue().catch(() => "");
+  if (!current.trim()) {
+    await input.fill(value);
+    await input.dispatchEvent("change").catch(() => undefined);
+  }
+  return true;
 }
 
 async function selectFirstOptionInSelect(page: Page, selectRoot: ReturnType<Page["locator"]>): Promise<boolean> {
@@ -355,8 +393,11 @@ async function completeEnterpriseStep1(deps: KycFlowDeps, page: Page, step: Scen
     await fillAddressBlock(page, "企业注册地址", addressDetail);
   }
 
-  if (await ensureCheckboxCheckedByTestId(page, "kyc-same-as-registration-address")) {
-    const registrationAddress = await inputValueByTestId(page, "kyc-registration-address");
+  if (
+    await ensureCheckboxCheckedByTestId(page, "kyc-same-as-registration-address") ||
+    await ensureCheckboxCheckedNearLabel(page, "实际经营地址", "与注册地址一致")
+  ) {
+    const registrationAddress = await inputValueByTestId(page, "kyc-registration-address") || await inputValueNearLabel(page, "企业注册地址");
     await page.waitForFunction(
       ({ testId, expected }) => {
         const root = document.querySelector(`[data-testid="${testId}"]`);
@@ -366,6 +407,18 @@ async function completeEnterpriseStep1(deps: KycFlowDeps, page: Page, step: Scen
       { testId: "kyc-actual-business-address", expected: registrationAddress },
       { timeout: 3_000 }
     ).catch(() => undefined);
+    const actualAddress = await inputValueByTestId(page, "kyc-actual-business-address") || await inputValueNearLabel(page, "实际经营地址");
+    if (!actualAddress) {
+      const sameAddressText = page.getByText("与注册地址一致").first();
+      if (await sameAddressText.isVisible().catch(() => false)) {
+        await sameAddressText.click({ force: true });
+        await page.waitForTimeout(500);
+      }
+    }
+    const syncedAddress = await inputValueByTestId(page, "kyc-actual-business-address") || await inputValueNearLabel(page, "实际经营地址");
+    if (!syncedAddress) {
+      await fillAddressBlock(page, "实际经营地址", registrationAddress || addressDetail);
+    }
   } else {
     await fillTestIdIfEmpty(page, "kyc-actual-business-address", addressDetail) || await fillAddressBlock(page, "实际经营地址", addressDetail);
   }
@@ -431,9 +484,21 @@ async function completeEnterpriseStep2(deps: KycFlowDeps, page: Page, step: Scen
     const personTypeSelect = personTypeItem.locator(".el-select, .dict-select").first();
     if (await personTypeSelect.isVisible().catch(() => false)) {
       await personTypeSelect.click();
-      const legalRepOption = page.locator(".el-select-dropdown:visible .el-select-dropdown__item").filter({ hasText: "法定代表人" }).first();
-      await legalRepOption.waitFor({ state: "visible", timeout: 5_000 });
-      await legalRepOption.click();
+      const visibleOptions = page.locator(".el-select-dropdown:visible .el-select-dropdown__item:not(.is-disabled)");
+      await visibleOptions.first().waitFor({ state: "visible", timeout: 5_000 });
+      const preferredOptions = ["法定代表人", "法人"];
+      let clicked = false;
+      for (const optionText of preferredOptions) {
+        const option = visibleOptions.filter({ hasText: optionText }).first();
+        if (await option.isVisible().catch(() => false)) {
+          await option.click();
+          clicked = true;
+          break;
+        }
+      }
+      if (!clicked) {
+        await visibleOptions.first().click();
+      }
       await page.keyboard.press("Escape").catch(() => undefined);
     }
   }
@@ -463,7 +528,7 @@ async function completeEnterpriseStep2(deps: KycFlowDeps, page: Page, step: Scen
     }
   }
 
-  await fillTestIdIfEmpty(page, "kyc-boss-shareholding", "100");
+  await fillTestIdIfEmpty(page, "kyc-boss-shareholding", "100") || await fillFirstInputNumberIfEmpty(page, "100");
 
   const liveAddress = deps.resolve("${var.reg_address_detail}") || "自动化测试居住地址001号";
   await fillTestIdIfEmpty(page, "kyc-boss-live-address", liveAddress) || await fillAddressBlock(page, "实际居住地址", liveAddress);
@@ -475,6 +540,10 @@ async function completeEnterpriseStep2(deps: KycFlowDeps, page: Page, step: Scen
 }
 
 async function submitEnterprisePreview(deps: KycFlowDeps, page: Page, step: ScenarioStep): Promise<void> {
+  const submittedStatus = page.getByText(/审批中|待审核|认证提交成功|in review/i).first();
+  if (await submittedStatus.isVisible().catch(() => false)) {
+    return;
+  }
   await deps.click(page, { ...step, target: "kyc_submit" });
   await page.getByText("企业认证提交成功").first().waitFor({ state: "visible", timeout: deps.timeoutMs(step) }).catch(async () => {
     await page.getByText("待审核").first().waitFor({ state: "visible", timeout: deps.timeoutMs(step) });
