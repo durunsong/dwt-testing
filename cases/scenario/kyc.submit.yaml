@@ -227,4 +227,4 @@ steps:
     type: web_assert_text
     session: user
     target: kyc_submit_success
-    expected: "待审核"
+    expected: "审批中，请耐心等待..."

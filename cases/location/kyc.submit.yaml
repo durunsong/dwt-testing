@@ -244,11 +244,13 @@ kyc_status:
 kyc_submit_success:
   text: "企业认证提交成功"
   fallback:
+    - text: "审批中，请耐心等待..."
     - text: "审批中"
     - text: "请耐心等待"
     - text: "待审核"
     - text: "审核通过"
     - text: "我们将在1-2个工作日内"
+    - css: ".el-alert"
 
 # ===== 注册 / 登录（kyc_submit 用例内嵌步骤） =====
 register_page_title:
