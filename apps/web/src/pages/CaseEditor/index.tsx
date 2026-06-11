@@ -1,4 +1,4 @@
-import { type ReactNode, useEffect, useRef, useState } from "react";
+import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import { Alert, Button, Card, Checkbox, Col, Drawer, Form, Input, Modal, Row, Segmented, Select, Space, Spin, Tag, Tooltip, Typography, Upload, message } from "antd";
 import type { RcFile } from "antd/es/upload";
 import { ArrowLeftOutlined, CheckCircleOutlined, CopyOutlined, DeleteOutlined, DownloadOutlined, EyeOutlined, FolderOpenOutlined, LinkOutlined, PaperClipOutlined, PlayCircleOutlined, RobotOutlined, SafetyCertificateOutlined, SaveOutlined, SearchOutlined, UploadOutlined } from "@ant-design/icons";
@@ -18,7 +18,8 @@ import type { CaseTypeConfig } from "../../types/settings";
 import { cn } from "../../utils/cn";
 import { createBase64FileCache, createObjectUrlPreview } from "../../utils/local-file";
 import { playTypewriterText } from "../../utils/typewriter-text";
-import { appendInstructionBlock, buildAttachmentAiPrompt, buildAttachmentBatchAiPrompt, collectUploadSteps, filterNewAttachmentSearchResults, insertUploadStepBeforeSubmit, isImageAttachmentFile, upsertUploadStepFile, type AttachmentPromptFile, type UploadStepOption } from "./attachment-prompt";
+import { AttachmentListRow } from "./AttachmentListRow";
+import { appendInstructionBlock, buildAttachmentAiPrompt, buildAttachmentBatchAiPrompt, buildFileToUploadStepsMap, collectUploadSteps, filterNewAttachmentSearchResults, getStepsUsingFile, insertUploadStepBeforeSubmit, isConcreteAttachmentPath, isImageAttachmentFile, resolveAttachmentUsageTone, upsertUploadStepFile, type AttachmentPromptFile, type UploadStepOption } from "./attachment-prompt";
 import { primaryAttachmentViewAction } from "./attachment-actions";
 import { aiYamlPreviewPlaceholder } from "./ai-preview-copy";
 import { caseEditorDropCopy, hasFileDrag, resolveCaseEditorDropTarget, type CaseEditorDropTarget } from "./drag-upload";
@@ -82,6 +83,7 @@ export default function CaseEditor() {
   const [aiValidation, setAiValidation] = useState<CaseValidationResult>();
   const [aiError, setAiError] = useState("");
   const [attachmentUploading, setAttachmentUploading] = useState(false);
+  const [attachmentDeleting, setAttachmentDeleting] = useState(false);
   const [aiInstructionUploading, setAiInstructionUploading] = useState(false);
   const [attachments, setAttachments] = useState<CaseAttachmentResult[]>([]);
   const [promptAttachment, setPromptAttachment] = useState<CaseAttachmentResult>();
@@ -99,13 +101,26 @@ export default function CaseEditor() {
   const localFileBase64CacheRef = useRef(createBase64FileCache());
   const aiInstructionPreviewRevokeRef = useRef(new Map<string, () => void>());
   const uploadSteps = collectUploadSteps(yaml);
+  const fileToUploadStepsMap = useMemo(() => buildFileToUploadStepsMap(uploadSteps), [uploadSteps]);
   const selectedPromptFileList = Object.values(selectedPromptFiles);
-  const visibleAttachments = attachments.filter((item) => attachmentMatches(item, attachmentQuery));
-  const visibleSearchResults = filterNewAttachmentSearchResults(attachmentSearchResults, attachments);
   const [selectedUploadStepId, setSelectedUploadStepId] = useState<string>();
+  const [attachmentStepFilter, setAttachmentStepFilter] = useState(false);
+  const [flashAttachmentFile, setFlashAttachmentFile] = useState<string>();
+  const attachmentListRef = useRef<HTMLDivElement>(null);
   const effectiveUploadStepId = selectedUploadStepId && uploadSteps.some((step) => step.stepId === selectedUploadStepId)
     ? selectedUploadStepId
     : uploadSteps[0]?.stepId;
+  const activeUploadStep = uploadSteps.find((step) => step.stepId === effectiveUploadStepId);
+  const referencedAttachmentCount = attachments.filter((item) => getStepsUsingFile(item.file, fileToUploadStepsMap).length > 0).length;
+  const activeStepAttachmentCount = attachments.filter((item) => resolveAttachmentUsageTone(item.file, effectiveUploadStepId, fileToUploadStepsMap) === "active").length;
+  const visibleAttachments = attachments
+    .filter((item) => attachmentMatches(item, attachmentQuery))
+    .filter((item) => !attachmentStepFilter || resolveAttachmentUsageTone(item.file, effectiveUploadStepId, fileToUploadStepsMap) === "active");
+  const selectedVisibleAttachmentCount = visibleAttachments.filter((item) => selectedPromptFiles[item.file]).length;
+  const allVisibleAttachmentsSelected = visibleAttachments.length > 0 && selectedVisibleAttachmentCount === visibleAttachments.length;
+  const someVisibleAttachmentsSelected = selectedVisibleAttachmentCount > 0 && !allVisibleAttachmentsSelected;
+  const selectedAttachmentFiles = selectedPromptFileList.map((item) => item.file);
+  const visibleSearchResults = filterNewAttachmentSearchResults(attachmentSearchResults, attachments);
   const dropCopy = pageDropTarget ? caseEditorDropCopy(pageDropTarget) : undefined;
 
   useEffect(() => {
@@ -134,6 +149,26 @@ export default function CaseEditor() {
       .then((items) => setCaseTypes(items.filter((item) => item.enabled)))
       .catch(() => setCaseTypes([{ key: "uncategorized", label: "未分类", enabled: true, sort: 0 }]));
   }, []);
+
+  useEffect(() => {
+    if (!effectiveUploadStepId || !attachmentListRef.current) {
+      return;
+    }
+    const activeFile = activeUploadStep?.file;
+    if (!isConcreteAttachmentPath(activeFile)) {
+      return;
+    }
+    const row = attachmentListRef.current.querySelector<HTMLElement>(`[data-attachment-file="${cssEscape(activeFile!)}"]`);
+    row?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+  }, [activeUploadStep?.file, effectiveUploadStepId]);
+
+  useEffect(() => {
+    if (!flashAttachmentFile) {
+      return;
+    }
+    const timer = window.setTimeout(() => setFlashAttachmentFile(undefined), 720);
+    return () => window.clearTimeout(timer);
+  }, [flashAttachmentFile]);
 
   useEffect(() => {
     const target = resolveCaseEditorDropTarget({ aiOpen, attachmentUploading, aiInstructionUploading });
@@ -480,30 +515,106 @@ export default function CaseEditor() {
     });
   }
 
-  async function deleteAttachment(file: string) {
+  function removeAttachmentsFromState(files: string[]) {
+    const fileSet = new Set(files);
+    setAttachments((items) => items.filter((item) => !fileSet.has(item.file)));
+    setAttachmentSearchResults((items) => items.filter((item) => !fileSet.has(item.file)));
+    setSelectedPromptFiles((current) => {
+      const next = { ...current };
+      for (const file of files) {
+        delete next[file];
+      }
+      return next;
+    });
+  }
+
+  function deleteAttachments(files: string[]) {
+    const uniqueFiles = [...new Set(files.map((file) => file.trim()).filter(Boolean))];
+    if (!uniqueFiles.length) {
+      return;
+    }
+
+    const referencedInYaml = uniqueFiles.filter((file) => yaml.includes(file));
     Modal.confirm({
-      title: "删除附件",
+      title: uniqueFiles.length === 1 ? "删除附件" : `批量删除 ${uniqueFiles.length} 个附件`,
+      width: 520,
       content: (
-        <Space orientation="vertical" size={8}>
-          <Typography.Text>确定删除这个附件/图片吗？</Typography.Text>
-          <Typography.Text code>{file}</Typography.Text>
-          {yaml.includes(file) ? <Alert type="warning" showIcon title="当前 YAML 已引用该路径，删除后运行前预检会报文件缺失。" /> : null}
+        <Space orientation="vertical" size={8} className="w-full">
+          <Typography.Text>
+            {uniqueFiles.length === 1 ? "确定删除这个附件/图片吗？" : `确定删除以下 ${uniqueFiles.length} 个附件吗？`}
+          </Typography.Text>
+          <div className="max-h-[220px] overflow-auto rounded border border-slate-100 px-2 py-1.5">
+            {uniqueFiles.map((file) => (
+              <Typography.Text key={file} code className="!mb-1 block truncate !text-xs">
+                {file}
+              </Typography.Text>
+            ))}
+          </div>
+          {referencedInYaml.length ? (
+            <Alert
+              type="warning"
+              showIcon
+              title={
+                referencedInYaml.length === 1
+                  ? "当前 YAML 已引用该路径，删除后运行前预检会报文件缺失。"
+                  : `其中 ${referencedInYaml.length} 个路径已被 YAML 引用，删除后运行前预检会报文件缺失。`
+              }
+            />
+          ) : null}
         </Space>
       ),
-      okText: "删除",
+      okText: uniqueFiles.length === 1 ? "删除" : `删除 ${uniqueFiles.length} 项`,
       cancelText: "取消",
       okButtonProps: { danger: true },
       onOk: async () => {
-        await deleteCaseAttachment(caseId || activeCase?.caseId || "_draft", file);
-        setAttachments((items) => items.filter((item) => item.file !== file));
-        setAttachmentSearchResults((items) => items.filter((item) => item.file !== file));
-        setSelectedPromptFiles((current) => {
-          const next = { ...current };
-          delete next[file];
-          return next;
-        });
-        messageApi.success("附件已删除");
+        setAttachmentDeleting(true);
+        try {
+          const caseKey = caseId || activeCase?.caseId || "_draft";
+          const results = await Promise.allSettled(uniqueFiles.map((file) => deleteCaseAttachment(caseKey, file)));
+          const succeeded = uniqueFiles.filter((_, index) => results[index]?.status === "fulfilled");
+          const failedCount = uniqueFiles.length - succeeded.length;
+          if (succeeded.length) {
+            removeAttachmentsFromState(succeeded);
+          }
+          if (failedCount > 0) {
+            messageApi.error(`${failedCount} 个附件删除失败`);
+          } else if (succeeded.length === 1) {
+            messageApi.success("附件已删除");
+          } else {
+            messageApi.success(`已删除 ${succeeded.length} 个附件`);
+          }
+        } finally {
+          setAttachmentDeleting(false);
+        }
       }
+    });
+  }
+
+  function deleteAttachment(file: string) {
+    deleteAttachments([file]);
+  }
+
+  function deleteSelectedAttachments() {
+    if (!selectedAttachmentFiles.length) {
+      messageApi.warning("请先勾选要删除的附件");
+      return;
+    }
+    deleteAttachments(selectedAttachmentFiles);
+  }
+
+  function toggleSelectAllVisibleAttachments(checked: boolean) {
+    setSelectedPromptFiles((current) => {
+      const next = { ...current };
+      if (checked) {
+        for (const item of visibleAttachments) {
+          next[item.file] = attachmentToPromptFile(item);
+        }
+      } else {
+        for (const item of visibleAttachments) {
+          delete next[item.file];
+        }
+      }
+      return next;
     });
   }
 
@@ -542,7 +653,21 @@ export default function CaseEditor() {
       return;
     }
     setYaml(upsertUploadStepFile(yaml, effectiveUploadStepId, file));
+    setFlashAttachmentFile(file);
     messageApi.success(`已引用到 ${effectiveUploadStepId}`);
+  }
+
+  function handleAttachmentRowClick(file: string) {
+    const usageTone = resolveAttachmentUsageTone(file, effectiveUploadStepId, fileToUploadStepsMap);
+    if (!effectiveUploadStepId) {
+      messageApi.warning("请先选择要写入 file 的 web_upload 步骤");
+      return;
+    }
+    if (usageTone === "active") {
+      messageApi.info("该附件已是当前步骤引用");
+      return;
+    }
+    applyAttachment(file);
   }
 
   function togglePromptFile(file: AttachmentPromptFile, checked: boolean) {
@@ -763,10 +888,59 @@ export default function CaseEditor() {
                 size="small"
                 placeholder="选择要写入 file 的 web_upload 步骤"
                 value={effectiveUploadStepId}
-                options={uploadSteps.map((step) => ({ label: `${step.stepId} · ${step.name}`, value: step.stepId }))}
+                options={uploadSteps.map((step) => ({
+                  label: (
+                    <span className="flex min-w-0 items-center justify-between gap-2">
+                      <span className="truncate">{step.stepId} · {step.name}</span>
+                      {isConcreteAttachmentPath(step.file) ? <Tag color="blue" className="!m-0 !text-[10px]">已绑定</Tag> : <Tag className="!m-0 !text-[10px]">待绑定</Tag>}
+                    </span>
+                  ),
+                  value: step.stepId
+                }))}
                 disabled={!uploadSteps.length}
                 onChange={setSelectedUploadStepId}
               />
+              {uploadSteps.length ? (
+                <div
+                  className={cn(
+                    "case-attachment-step-hint px-2.5 py-2 text-xs",
+                    isConcreteAttachmentPath(activeUploadStep?.file) ? "case-attachment-step-hint--bound" : "case-attachment-step-hint--empty"
+                  )}
+                >
+                  {activeUploadStep ? (
+                    <Space orientation="vertical" size={4} className="w-full">
+                      <span className="text-slate-600">
+                        当前步骤：<Typography.Text code className="!text-[11px]">{activeUploadStep.stepId}</Typography.Text>
+                        {activeUploadStep.target ? <span className="text-slate-400"> · target: {activeUploadStep.target}</span> : null}
+                      </span>
+                      {isConcreteAttachmentPath(activeUploadStep.file) ? (
+                        <span className="text-blue-700">
+                          已引用附件：<Typography.Text code className="!text-[11px] !text-blue-700">{activeUploadStep.file}</Typography.Text>
+                        </span>
+                      ) : (
+                        <span className="text-slate-500">尚未绑定附件，可在下方列表点击行或引用按钮写入 file。</span>
+                      )}
+                    </Space>
+                  ) : null}
+                </div>
+              ) : (
+                <Alert type="warning" showIcon className="!py-2" title="当前 YAML 没有 web_upload 步骤" description="可先使用 AI 助手补充上传步骤，或在 admin 类用例中上传图片自动插入。" />
+              )}
+              {attachments.length ? (
+                <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-slate-500">
+                  <span>
+                    {referencedAttachmentCount}/{attachments.length} 个附件已被 YAML 引用
+                    {effectiveUploadStepId ? ` · 当前步骤 ${activeStepAttachmentCount} 个` : ""}
+                  </span>
+                  <Checkbox
+                    checked={attachmentStepFilter}
+                    disabled={!effectiveUploadStepId}
+                    onChange={(event) => setAttachmentStepFilter(event.target.checked)}
+                  >
+                    仅看当前步骤
+                  </Checkbox>
+                </div>
+              ) : null}
               <Upload.Dragger
                 multiple
                 showUploadList={false}
@@ -803,92 +977,109 @@ export default function CaseEditor() {
                 </Button>
                 <Button
                   size="small"
-                  disabled={!selectedPromptFileList.length}
+                  danger
+                  icon={<DeleteOutlined />}
+                  loading={attachmentDeleting}
+                  disabled={!selectedAttachmentFiles.length || attachmentDeleting}
+                  onClick={() => deleteSelectedAttachments()}
+                >
+                  批量删除{selectedAttachmentFiles.length ? ` (${selectedAttachmentFiles.length})` : ""}
+                </Button>
+                <Button
+                  size="small"
+                  disabled={!selectedPromptFileList.length || attachmentDeleting}
                   onClick={() => setSelectedPromptFiles({})}
                 >
                   清空选择
                 </Button>
               </Space>
               {visibleAttachments.length ? (
-                <div className="max-h-[260px] divide-y divide-slate-100 overflow-auto rounded border border-slate-100">
-                  {visibleAttachments.map((item) => (
-                    <div key={item.file} className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 px-2 py-2 text-sm">
-                      <Checkbox
-                        checked={Boolean(selectedPromptFiles[item.file])}
-                        onChange={(event) => togglePromptFile(attachmentToPromptFile(item), event.target.checked)}
-                      />
-                      <span className="min-w-0" title={item.file}>
-                        <span className="flex min-w-0 items-center gap-1.5">
-                          <PaperClipOutlined className="shrink-0 text-slate-400" />
-                          <span className="truncate font-mono text-xs text-slate-700">{item.name || attachmentFileName(item.file)}</span>
-                        </span>
-                        <span className="mt-0.5 block truncate text-[11px] text-slate-400">{item.file}</span>
+                <div ref={attachmentListRef} className="case-attachment-panel__list max-h-[260px] divide-y divide-slate-100 overflow-auto rounded border border-slate-100">
+                  <div className="sticky top-0 z-[1] flex items-center gap-2 border-b border-slate-100 bg-slate-50/95 px-2 py-1.5">
+                    <Checkbox
+                      indeterminate={someVisibleAttachmentsSelected}
+                      checked={allVisibleAttachmentsSelected}
+                      disabled={attachmentDeleting}
+                      onChange={(event) => toggleSelectAllVisibleAttachments(event.target.checked)}
+                    >
+                      <span className="text-xs text-slate-600">
+                        全选当前列表 ({selectedVisibleAttachmentCount}/{visibleAttachments.length})
                       </span>
-                      <Space size={0} className="shrink-0">
-                        {primaryAttachmentViewAction(item) === "preview" ? (
-                          <Tooltip title="预览">
-                            <Button size="small" type="text" icon={<EyeOutlined />} onClick={() => previewCaseAttachment(item.file, item.name)} />
-                          </Tooltip>
-                        ) : (
-                          <Tooltip title="下载">
-                            <Button size="small" type="text" icon={<DownloadOutlined />} href={caseAttachmentFileUrl(item.file, { download: true })} />
-                          </Tooltip>
-                        )}
-                        <Tooltip title="引用到上传步骤">
-                          <Button size="small" type="text" icon={<LinkOutlined />} disabled={!effectiveUploadStepId} onClick={() => applyAttachment(item.file)} />
-                        </Tooltip>
-                        <Tooltip title="生成提示词">
-                          <Button size="small" type="text" icon={<RobotOutlined />} onClick={() => openAttachmentPrompt(item)} />
-                        </Tooltip>
-                        <Tooltip title="复制路径">
-                          <Button size="small" type="text" icon={<CopyOutlined />} onClick={() => void copyAttachmentPath(item.file)} />
-                        </Tooltip>
-                        <Tooltip title="删除附件">
-                          <Button size="small" danger type="text" icon={<DeleteOutlined />} onClick={() => void deleteAttachment(item.file)} />
-                        </Tooltip>
-                      </Space>
-                    </div>
+                    </Checkbox>
+                  </div>
+                  {visibleAttachments.map((item) => (
+                    <AttachmentListRow
+                      key={item.file}
+                      item={item}
+                      usageTone={resolveAttachmentUsageTone(item.file, effectiveUploadStepId, fileToUploadStepsMap)}
+                      linkedSteps={getStepsUsingFile(item.file, fileToUploadStepsMap)}
+                      activeStepId={effectiveUploadStepId}
+                      checked={Boolean(selectedPromptFiles[item.file])}
+                      selectionDisabled={attachmentDeleting}
+                      flash={flashAttachmentFile === item.file}
+                      onToggleCheck={(checked) => togglePromptFile(attachmentToPromptFile(item), checked)}
+                      onPreview={() => previewCaseAttachment(item.file, item.name)}
+                      onDownloadUrl={primaryAttachmentViewAction(item) === "download" ? caseAttachmentFileUrl(item.file, { download: true }) : undefined}
+                      onApply={() => applyAttachment(item.file)}
+                      onPrompt={() => openAttachmentPrompt(item)}
+                      onCopyPath={() => void copyAttachmentPath(item.file)}
+                      onDelete={() => deleteAttachment(item.file)}
+                      onRowClick={() => handleAttachmentRowClick(item.file)}
+                    />
                   ))}
                 </div>
               ) : (
-                <Alert type="info" showIcon title={attachmentQuery ? "当前附件列表没有匹配项，可以点击搜索从附件目录继续查找。" : "暂无附件，先上传图片或文件。"} />
+                <Alert
+                  type="info"
+                  showIcon
+                  title={
+                    attachmentStepFilter
+                      ? "当前步骤尚未绑定附件，可上传新文件或从列表引用。"
+                      : attachmentQuery
+                        ? "当前附件列表没有匹配项，可以点击搜索从附件目录继续查找。"
+                        : "暂无附件，先上传图片或文件。"
+                  }
+                />
               )}
               {visibleSearchResults.length ? (
-                <div className="max-h-[220px] divide-y divide-slate-100 overflow-auto rounded border border-slate-100">
+                <div className="case-attachment-panel__list max-h-[220px] divide-y divide-slate-100 overflow-auto rounded border border-dashed border-amber-200 bg-amber-50/30">
+                  <div className="sticky top-0 z-[1] border-b border-amber-100 bg-amber-50/95 px-2 py-1 text-[11px] text-amber-700">
+                    目录搜索结果（未在当前列表中的文件）
+                  </div>
                   {visibleSearchResults.map((item) => (
-                    <div key={`${item.kind}-${item.file}`} className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2 px-2 py-2 text-sm">
-                      <span className="min-w-0" title={item.file}>
-                        <span className="flex min-w-0 items-center gap-1.5">
-                          {item.kind === "directory" ? <FolderOpenOutlined className="shrink-0 text-amber-500" /> : <PaperClipOutlined className="shrink-0 text-slate-400" />}
-                          <span className="truncate font-mono text-xs text-slate-700">{item.name || attachmentFileName(item.file)}</span>
+                    item.kind === "directory" ? (
+                      <div key={`${item.kind}-${item.file}`} className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2 px-2 py-2 text-sm transition-colors hover:bg-amber-50/70">
+                        <span className="min-w-0" title={item.file}>
+                          <span className="flex min-w-0 items-center gap-1.5">
+                            <FolderOpenOutlined className="shrink-0 text-amber-500" />
+                            <span className="truncate font-mono text-xs text-slate-700">{item.name || attachmentFileName(item.file)}</span>
+                          </span>
+                          <span className="mt-0.5 block truncate text-[11px] text-slate-400">{item.file}</span>
                         </span>
-                        <span className="mt-0.5 block truncate text-[11px] text-slate-400">{item.file}</span>
-                      </span>
-                      <Space size={0} className="shrink-0">
-                        {item.kind === "file" ? (
-                          <>
-                            {primaryAttachmentViewAction(item) === "preview" ? (
-                              <Tooltip title="预览">
-                                <Button size="small" type="text" icon={<EyeOutlined />} onClick={() => previewCaseAttachment(item.file, item.name)} />
-                              </Tooltip>
-                            ) : (
-                              <Tooltip title="下载">
-                                <Button size="small" type="text" icon={<DownloadOutlined />} href={caseAttachmentFileUrl(item.file, { download: true })} />
-                              </Tooltip>
-                            )}
-                            <Tooltip title="引用到上传步骤">
-                              <Button size="small" type="text" icon={<LinkOutlined />} disabled={!effectiveUploadStepId} onClick={() => applyAttachment(item.file)} />
-                            </Tooltip>
-                            <Tooltip title="加入提示词">
-                              <Button size="small" type="text" icon={<RobotOutlined />} onClick={() => togglePromptFile(searchResultToPromptFile(item), true)} />
-                            </Tooltip>
-                          </>
-                        ) : null}
                         <Tooltip title="复制路径">
                           <Button size="small" type="text" icon={<CopyOutlined />} onClick={() => void copyAttachmentPath(item.file)} />
                         </Tooltip>
-                      </Space>
-                    </div>
+                      </div>
+                    ) : (
+                      <AttachmentListRow
+                        key={`${item.kind}-${item.file}`}
+                        item={item}
+                        usageTone={resolveAttachmentUsageTone(item.file, effectiveUploadStepId, fileToUploadStepsMap)}
+                        linkedSteps={getStepsUsingFile(item.file, fileToUploadStepsMap)}
+                        activeStepId={effectiveUploadStepId}
+                        checked={Boolean(selectedPromptFiles[item.file])}
+                        flash={flashAttachmentFile === item.file}
+                        showCheckbox={false}
+                        showDeleteAction={false}
+                        showPromptAction
+                        onApply={() => applyAttachment(item.file)}
+                        onPrompt={() => togglePromptFile(searchResultToPromptFile(item), true)}
+                        onPreview={() => previewCaseAttachment(item.file, item.name)}
+                        onDownloadUrl={primaryAttachmentViewAction(item) === "download" ? caseAttachmentFileUrl(item.file, { download: true }) : undefined}
+                        onCopyPath={() => void copyAttachmentPath(item.file)}
+                        onRowClick={() => handleAttachmentRowClick(item.file)}
+                      />
+                    )
                   ))}
                 </div>
               ) : null}
@@ -1221,4 +1412,11 @@ function normalizeCaseId(value?: string): string {
     .replace(/[^a-zA-Z0-9_-]/g, "_")
     .replace(/_+/g, "_")
     .toLowerCase();
+}
+
+function cssEscape(value: string): string {
+  if (typeof CSS !== "undefined" && typeof CSS.escape === "function") {
+    return CSS.escape(value);
+  }
+  return value.replace(/["\\]/g, "\\$&");
 }

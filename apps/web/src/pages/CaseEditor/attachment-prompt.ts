@@ -2,7 +2,10 @@ export interface UploadStepOption {
   stepId: string;
   name: string;
   target?: string;
+  file?: string;
 }
+
+export type AttachmentUsageTone = "active" | "linked" | "unused";
 
 export interface AttachmentPromptFile {
   name: string;
@@ -124,6 +127,54 @@ export function buildAttachmentBatchAiPrompt(input: AttachmentBatchPromptInput):
   ].join("\n");
 }
 
+export function normalizeAttachmentPath(path: string): string {
+  return path.trim().replace(/\\/g, "/");
+}
+
+export function isConcreteAttachmentPath(file?: string): boolean {
+  if (!file) {
+    return false;
+  }
+  const normalized = normalizeAttachmentPath(file);
+  if (!normalized || normalized.includes("${")) {
+    return false;
+  }
+  return normalized.startsWith("uploads/");
+}
+
+export function buildFileToUploadStepsMap(steps: UploadStepOption[]): Map<string, UploadStepOption[]> {
+  const map = new Map<string, UploadStepOption[]>();
+  for (const step of steps) {
+    if (!isConcreteAttachmentPath(step.file)) {
+      continue;
+    }
+    const key = normalizeAttachmentPath(step.file!);
+    const existing = map.get(key) ?? [];
+    existing.push(step);
+    map.set(key, existing);
+  }
+  return map;
+}
+
+export function getStepsUsingFile(file: string, map: Map<string, UploadStepOption[]>): UploadStepOption[] {
+  return map.get(normalizeAttachmentPath(file)) ?? [];
+}
+
+export function resolveAttachmentUsageTone(
+  file: string,
+  activeStepId: string | undefined,
+  map: Map<string, UploadStepOption[]>
+): AttachmentUsageTone {
+  const linkedSteps = getStepsUsingFile(file, map);
+  if (!linkedSteps.length) {
+    return "unused";
+  }
+  if (activeStepId && linkedSteps.some((step) => step.stepId === activeStepId)) {
+    return "active";
+  }
+  return "linked";
+}
+
 export function collectUploadSteps(content: string): UploadStepOption[] {
   const lines = content.replace(/\r\n/g, "\n").split("\n");
   const steps: UploadStepOption[] = [];
@@ -131,7 +182,12 @@ export function collectUploadSteps(content: string): UploadStepOption[] {
 
   const flush = () => {
     if (current?.stepId && current.type === "web_upload") {
-      steps.push({ stepId: current.stepId, name: current.name ?? "web_upload", target: current.target });
+      steps.push({
+        stepId: current.stepId,
+        name: current.name ?? "web_upload",
+        target: current.target,
+        file: current.file
+      });
     }
   };
 
@@ -145,13 +201,15 @@ export function collectUploadSteps(content: string): UploadStepOption[] {
     if (!current) {
       continue;
     }
-    const field = line.match(/^\s+(name|type|target):\s*(.+?)\s*$/);
+    const field = line.match(/^\s+(name|type|target|file):\s*(.+?)\s*$/);
     if (field?.[1] === "name") {
       current.name = unquoteYamlScalar(field[2] ?? "");
     } else if (field?.[1] === "type") {
       current.type = unquoteYamlScalar(field[2] ?? "");
     } else if (field?.[1] === "target") {
       current.target = unquoteYamlScalar(field[2] ?? "");
+    } else if (field?.[1] === "file") {
+      current.file = unquoteYamlScalar(field[2] ?? "");
     }
   }
   flush();

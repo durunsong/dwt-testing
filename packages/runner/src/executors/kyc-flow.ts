@@ -26,15 +26,8 @@ function uploadSlotFile(deps: KycFlowDeps, target: string, envName: string, fall
   return (resolvedSlotFile && !resolvedSlotFile.includes("${") ? resolvedSlotFile : process.env[envName] || fallback).trim();
 }
 
-function splitChineseName(fullName: string): { lastName: string; firstName: string } {
-  const name = fullName.trim();
-  if (!name) return { lastName: "", firstName: "" };
-  const compoundSurnames = ["欧阳", "上官", "司马", "诸葛", "东方", "慕容", "令狐", "皇甫", "夏侯", "独孤", "南宫", "万俟"];
-  const compound = compoundSurnames.find((item) => name.startsWith(item));
-  if (compound) {
-    return { lastName: compound, firstName: name.slice(compound.length) };
-  }
-  return { lastName: name.slice(0, 1), firstName: name.slice(1) };
+function byTestId(page: Page, testId: string) {
+  return page.locator(`[data-testid="${testId}"]`).first();
 }
 
 async function waitForUrl(page: Page, pattern: RegExp, timeoutMs: number): Promise<boolean> {
@@ -145,6 +138,19 @@ async function fillIfEmpty(page: Page, placeholder: string, value: string): Prom
   await input.fill(value);
 }
 
+async function fillTestIdIfEmpty(page: Page, testId: string, value: string): Promise<boolean> {
+  if (!value) return false;
+  const root = byTestId(page, testId);
+  if (!(await root.isVisible().catch(() => false))) return false;
+  const input = root.locator("input, textarea").first();
+  const target = await input.count().catch(() => 0) ? input : root;
+  const current = await target.inputValue().catch(() => "");
+  if (current.trim()) return true;
+  await target.fill(value);
+  await target.dispatchEvent("change").catch(() => undefined);
+  return true;
+}
+
 async function fillField(page: Page, placeholder: string, value: string): Promise<void> {
   if (!value) return;
   const input = page.getByPlaceholder(placeholder).first();
@@ -152,14 +158,42 @@ async function fillField(page: Page, placeholder: string, value: string): Promis
   await input.fill(value);
 }
 
+async function selectFirstOptionInSelect(page: Page, selectRoot: ReturnType<Page["locator"]>): Promise<boolean> {
+  if (!(await selectRoot.isVisible().catch(() => false))) return false;
+  await selectRoot.scrollIntoViewIfNeeded().catch(() => undefined);
+  await selectRoot.click();
+  const option = page.locator(".el-select-dropdown:visible .el-select-dropdown__item:not(.is-disabled)").first();
+  await option.waitFor({ state: "visible", timeout: 5_000 });
+  await option.click();
+  await page.keyboard.press("Escape").catch(() => undefined);
+  return true;
+}
+
+async function selectFirstOptionByTestId(page: Page, testId: string): Promise<boolean> {
+  const root = byTestId(page, testId);
+  if (!(await root.isVisible().catch(() => false))) return false;
+  const input = root.locator("input").first();
+  const current = await input.inputValue().catch(() => "");
+  if (current.trim()) return true;
+  const select = root.locator(".el-select").first();
+  return selectFirstOptionInSelect(page, await select.count().catch(() => 0) ? select : root);
+}
+
 async function selectFirstOptionNearLabel(page: Page, labelText: string): Promise<void> {
   const formItem = page.locator(".el-form-item").filter({ hasText: labelText }).first();
   const select = formItem.locator(".el-select").first();
-  if (!(await select.isVisible().catch(() => false))) return;
-  await select.click();
-  const option = page.locator(".el-select-dropdown:visible .el-select-dropdown__item").first();
-  await option.waitFor({ state: "visible", timeout: 5_000 });
-  await option.click();
+  await selectFirstOptionInSelect(page, select);
+}
+
+async function selectFirstOptionNearLabels(page: Page, labels: string[]): Promise<boolean> {
+  for (const labelText of labels) {
+    const formItem = page.locator(".el-form-item").filter({ hasText: labelText }).first();
+    const select = formItem.locator(".el-select").first();
+    if (await selectFirstOptionInSelect(page, select).catch(() => false)) {
+      return true;
+    }
+  }
+  return false;
 }
 
 async function selectOptionByText(page: Page, labelText: string, optionText: string): Promise<void> {
@@ -211,18 +245,12 @@ async function waitForOcrOrTimeout(page: Page, successText: string, timeoutMs: n
 
 async function completeUserAuth(deps: KycFlowDeps, page: Page, step: ScenarioStep): Promise<void> {
   const idCardFile = uploadSlotFile(deps, "user_auth_id_upload", "KYC_ID_CARD_FRONT_FILE", "uploads/cases/kyc_submit/id-card-front.png");
-  const legalPerson = deps.resolve("${var.legal_person}") || envFile("KYC_LEGAL_PERSON", "测试法人");
-  const idCardNo = deps.resolve("${var.id_card_no}") || envFile("KYC_ID_CARD_NO", "110101199001011234");
-  const { lastName, firstName } = splitChineseName(legalPerson);
 
   await selectFirstOptionNearLabel(page, "证件类型");
   await uploadByLabel(deps, page, step, "user_auth_id_upload", idCardFile);
   await page.waitForTimeout(2_000);
   await waitForOcrOrTimeout(page, "已自动识别并填充证件信息", deps.timeoutMs(step));
-
-  await fillField(page, "姓", lastName);
-  await fillField(page, "名", firstName);
-  await fillField(page, "请填写真实证件号", idCardNo);
+  await page.waitForTimeout(1_000);
 
   const authResponse = page.waitForResponse(
     (response) => response.url().includes("/auth/userAuth") && response.request().method() === "POST",
@@ -259,43 +287,54 @@ async function completeEnterpriseStep1(deps: KycFlowDeps, page: Page, step: Scen
 
   await uploadByLabel(deps, page, step, "kyc_license_upload", licenseFile);
   await page.waitForTimeout(2_000);
+  await page.waitForLoadState("networkidle", { timeout: 8_000 }).catch(() => undefined);
   const officeUploaded = await uploadIfPresent(page, "input[type='file'][name='office']", officeFile);
   if (!officeUploaded) {
     await uploadByLabel(deps, page, step, "kyc_office_upload", officeFile).catch(() => undefined);
   }
 
   await page.getByText("企业基本信息").first().scrollIntoViewIfNeeded().catch(() => undefined);
-  await fillField(page, "请填写企业中文名称", enterpriseName);
-  await fillField(page, "请填写企业英文名称", `${enterpriseName} EN`);
-  await fillField(page, "一般为18/15位数字或字母组合", licenseNo);
-  await fillField(page, "一般为18或15位数字或字母", licenseNo);
+  await fillTestIdIfEmpty(page, "kyc-enterprise-name", enterpriseName) || await fillIfEmpty(page, "请填写企业中文名称", enterpriseName);
+  await fillTestIdIfEmpty(page, "kyc-enterprise-en-name", `${enterpriseName} EN`) || await fillIfEmpty(page, "请填写企业英文名称", `${enterpriseName} EN`);
+  await fillTestIdIfEmpty(page, "kyc-license-no", licenseNo) || await fillIfEmpty(page, "一般为18/15位数字或字母组合", licenseNo);
+  await fillIfEmpty(page, "一般为18或15位数字或字母", licenseNo);
 
-  await selectFirstOptionNearLabel(page, "企业注册国家");
-  await fillAddressBlock(page, "企业注册地址", addressDetail);
+  if (!(await selectFirstOptionByTestId(page, "kyc-registration-country"))) {
+    await selectFirstOptionNearLabel(page, "企业注册国家");
+  }
+  if (!(await fillTestIdIfEmpty(page, "kyc-registration-address", addressDetail))) {
+    await fillAddressBlock(page, "企业注册地址", addressDetail);
+  }
 
-  const sameAddress = page.getByText("与注册地址一致").first();
+  const sameAddress = byTestId(page, "kyc-same-as-registration-address");
   if (await sameAddress.isVisible().catch(() => false)) {
     await sameAddress.click();
   } else {
-    await fillAddressBlock(page, "实际经营地址", addressDetail);
+    await fillTestIdIfEmpty(page, "kyc-actual-business-address", addressDetail) || await fillAddressBlock(page, "实际经营地址", addressDetail);
   }
 
-  await selectFirstOptionNearLabel(page, "员工人数");
-  await selectFirstOptionNearLabel(page, "行业类型");
-  const industryForm = page.locator(".industry-type-item").first();
-  const commoditySelect = industryForm.locator(".el-select").nth(1);
-  if (await commoditySelect.isVisible().catch(() => false)) {
-    await commoditySelect.click();
-    await page.locator(".el-select-dropdown:visible .el-select-dropdown__item").first().click();
+  if (!(await selectFirstOptionByTestId(page, "kyc-staff-num"))) {
+    await selectFirstOptionNearLabels(page, ["企业人数", "员工人数"]);
+  }
+  if (!(await selectFirstOptionByTestId(page, "kyc-industry"))) {
+    await selectFirstOptionNearLabel(page, "行业类型");
+  }
+  await selectFirstOptionByTestId(page, "kyc-commodity");
+
+  if (!(await selectFirstOptionByTestId(page, "kyc-export-type"))) {
+    await selectFirstOptionNearLabel(page, "出口类型");
+  }
+  if (!(await selectFirstOptionByTestId(page, "kyc-export-country"))) {
+    await selectFirstOptionNearLabel(page, "出口国家和地区");
   }
 
-  await selectFirstOptionNearLabel(page, "出口类型");
-  await selectFirstOptionNearLabel(page, "出口国家和地区");
+  await fillTestIdIfEmpty(page, "kyc-history-export", "100") || await deps.optionalInput(page, step, "kyc_history_export", "100");
+  await fillTestIdIfEmpty(page, "kyc-estimate-export", "200") || await deps.optionalInput(page, step, "kyc_estimate_export", "200");
 
-  await deps.optionalInput(page, step, "kyc_history_export", "100");
-  await deps.optionalInput(page, step, "kyc_estimate_export", "200");
-
-  const setupDate = page.locator(".el-date-editor input").first();
+  const setupDateRoot = byTestId(page, "kyc-setup-date");
+  const setupDate = await setupDateRoot.isVisible().catch(() => false)
+    ? setupDateRoot.locator("input").first()
+    : page.locator(".el-date-editor input").first();
   if (await setupDate.isVisible().catch(() => false)) {
     const current = await setupDate.inputValue().catch(() => "");
     if (!current.trim()) {
@@ -304,9 +343,14 @@ async function completeEnterpriseStep1(deps: KycFlowDeps, page: Page, step: Scen
     }
   }
 
-  const longTerm = page.getByText("长期有效").first();
+  const longTerm = byTestId(page, "kyc-long-term-valid");
   if (await longTerm.isVisible().catch(() => false)) {
     await longTerm.click();
+  } else {
+    const fallbackLongTerm = page.getByText("长期有效").first();
+    if (await fallbackLongTerm.isVisible().catch(() => false)) {
+      await fallbackLongTerm.click();
+    }
   }
 
   await deps.click(page, { ...step, target: "kyc_step1_next" });
@@ -320,42 +364,47 @@ async function completeEnterpriseStep2(deps: KycFlowDeps, page: Page, step: Scen
   const idBackFile = uploadSlotFile(deps, "kyc_boss_id_back_upload", "KYC_ID_CARD_BACK_FILE", "uploads/cases/kyc_submit/id-card-back.png");
   const idHandheldFile = uploadSlotFile(deps, "kyc_boss_id_handheld_upload", "KYC_ID_CARD_HANDHELD_FILE", "uploads/cases/kyc_submit/id-card-handheld.png");
 
-  const personTypeItem = page.locator(".el-form-item").filter({ hasText: "成员身份" }).first();
-  const personTypeSelect = personTypeItem.locator(".el-select, .dict-select").first();
-  if (await personTypeSelect.isVisible().catch(() => false)) {
-    await personTypeSelect.click();
-    const legalRepOption = page.locator(".el-select-dropdown:visible .el-select-dropdown__item").filter({ hasText: "法定代表人" }).first();
-    await legalRepOption.waitFor({ state: "visible", timeout: 5_000 });
-    await legalRepOption.click();
+  if (!(await selectFirstOptionByTestId(page, "kyc-boss-person-type"))) {
+    const personTypeItem = page.locator(".el-form-item").filter({ hasText: "成员身份" }).first();
+    const personTypeSelect = personTypeItem.locator(".el-select, .dict-select").first();
+    if (await personTypeSelect.isVisible().catch(() => false)) {
+      await personTypeSelect.click();
+      const legalRepOption = page.locator(".el-select-dropdown:visible .el-select-dropdown__item").filter({ hasText: "法定代表人" }).first();
+      await legalRepOption.waitFor({ state: "visible", timeout: 5_000 });
+      await legalRepOption.click();
+      await page.keyboard.press("Escape").catch(() => undefined);
+    }
   }
-  await fillField(page, "请填写姓名，以证件姓名为准", legalPerson);
-  await fillField(page, "请输入法人", legalPerson);
 
   await uploadByLabel(deps, page, step, "kyc_boss_id_front_upload", idFrontFile);
   await uploadByLabel(deps, page, step, "kyc_boss_id_back_upload", idBackFile);
   await uploadByLabel(deps, page, step, "kyc_boss_id_handheld_upload", idHandheldFile);
+  await page.waitForLoadState("networkidle", { timeout: 8_000 }).catch(() => undefined);
+  await page.waitForTimeout(1_000);
 
-  await fillField(page, "请填写正确的证件号码", idCardNo);
-  await fillField(page, "请输入身份证号", idCardNo);
-  await fillIfEmpty(page, "出生日期", "1990-01-01");
-  await fillIfEmpty(page, "派发日期", "2015-01-01");
+  await fillTestIdIfEmpty(page, "kyc-legal-person", legalPerson) || await fillIfEmpty(page, "请填写姓名，以证件姓名为准", legalPerson);
+  await fillIfEmpty(page, "请输入法人", legalPerson);
+  await fillTestIdIfEmpty(page, "kyc-id-card-no", idCardNo) || await fillIfEmpty(page, "请填写正确的证件号码", idCardNo);
+  await fillIfEmpty(page, "请输入身份证号", idCardNo);
+  await fillTestIdIfEmpty(page, "kyc-boss-birthday", "1990-01-01") || await fillIfEmpty(page, "出生日期", "1990-01-01");
+  await fillTestIdIfEmpty(page, "kyc-boss-id-start", "2015-01-01") || await fillIfEmpty(page, "派发日期", "2015-01-01");
 
-  const longTerm = page.getByText("证件长期有效").first();
+  const longTerm = byTestId(page, "kyc-boss-id-long-term");
   if (await longTerm.isVisible().catch(() => false)) {
     await longTerm.click();
   } else {
-    await fillIfEmpty(page, "有效期", "2035-01-01");
-  }
-
-  const shareInput = page.locator(".el-input-number input").first();
-  if (await shareInput.isVisible().catch(() => false)) {
-    const current = await shareInput.inputValue().catch(() => "");
-    if (!current.trim()) {
-      await shareInput.fill("100");
+    const fallbackLongTerm = page.getByText("证件长期有效").first();
+    if (await fallbackLongTerm.isVisible().catch(() => false)) {
+      await fallbackLongTerm.click();
+    } else {
+      await fillIfEmpty(page, "有效期", "2035-01-01");
     }
   }
 
-  await fillAddressBlock(page, "实际居住地址", deps.resolve("${var.reg_address_detail}") || "自动化测试居住地址001号");
+  await fillTestIdIfEmpty(page, "kyc-boss-shareholding", "100");
+
+  const liveAddress = deps.resolve("${var.reg_address_detail}") || "自动化测试居住地址001号";
+  await fillTestIdIfEmpty(page, "kyc-boss-live-address", liveAddress) || await fillAddressBlock(page, "实际居住地址", liveAddress);
 
   await deps.click(page, { ...step, target: "kyc_step2_next" });
   await page.getByText("提交申请").first().waitFor({ state: "visible", timeout: deps.timeoutMs(step) }).catch(async () => {

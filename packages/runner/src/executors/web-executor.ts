@@ -376,14 +376,21 @@ export class WebExecutor {
   }
 
   private parseVerificationCodeFromText(text: string): string | undefined {
-    const matched = text.match(/(?:验证码|校验码)[:：\s]*(\d{4,8})/);
-    if (!matched?.[1]) {
-      return undefined;
+    const patterns = [
+      /(?:验证码|校验码)\s*(?:是|为)?\s*[:：]?\s*(\d{4,8})/,
+      /(?:验证码|校验码)[:：\s]*(\d{4,8})/
+    ];
+    for (const pattern of patterns) {
+      const matched = text.match(pattern);
+      if (!matched?.[1]) {
+        continue;
+      }
+      if (/^20\d{4}$/.test(matched[1])) {
+        continue;
+      }
+      return matched[1];
     }
-    if (/^20\d{4}$/.test(matched[1])) {
-      return undefined;
-    }
-    return matched[1];
+    return undefined;
   }
 
   private normalizeSmsMatchTarget(value?: string): string {
@@ -431,6 +438,7 @@ export class WebExecutor {
       const row = rows.nth(index);
       const targetNo = ((await row.locator("td").first().textContent()) ?? "").trim();
       const content = ((await row.locator("td:nth-child(5)").textContent()) ?? "").trim();
+      const rowText = ((await row.textContent()) ?? "").trim();
       const code = this.parseVerificationCodeFromText(content);
       if (!code) {
         continue;
@@ -438,17 +446,17 @@ export class WebExecutor {
       if (!normalizedFilter) {
         return code;
       }
-      if (this.smsTargetMatches(filterTarget, targetNo)) {
+      if (this.smsTargetMatches(filterTarget, `${targetNo} ${content} ${rowText}`)) {
         return code;
       }
       fallbackCode ??= code;
     }
 
-    if (fallbackCode) {
+    if (!normalizedFilter && fallbackCode) {
       return fallbackCode;
     }
 
-    const latestContent = ((await adminPage.locator(".el-table__body-wrapper tbody tr.el-table__row:first-child td:nth-child(5)").textContent()) ?? "").trim();
+    const latestContent = ((await adminPage.locator(".el-table__body-wrapper tbody tr.el-table__row:first-child td:nth-child(5)").first().textContent()) ?? "").trim();
     throw new Error(`admin 短信记录未找到验证码${filterTarget ? `（目标：${filterTarget}）` : ""}，最新内容：${latestContent}`);
   }
 
@@ -649,6 +657,14 @@ export class WebExecutor {
     await phoneInput.click({ timeout: this.timeoutMs(step) });
     await phoneInput.fill("", { timeout: this.timeoutMs(step) });
     await phoneInput.pressSequentially(expectedValue, { delay: 40 });
+    await phoneInput.evaluate((element, value) => {
+      if (!(element instanceof HTMLInputElement)) {
+        return;
+      }
+      element.value = value;
+      element.dispatchEvent(new Event("input", { bubbles: true }));
+      element.dispatchEvent(new Event("change", { bubbles: true }));
+    }, expectedValue);
     await phoneInput.press("Tab");
     await phoneInput.evaluate((element) => {
       element.dispatchEvent(new Event("input", { bubbles: true }));
@@ -671,14 +687,33 @@ export class WebExecutor {
   }
 
   private async checkRegisterAgreeCheckbox(page: Page, step: ScenarioStep): Promise<void> {
-    const checkboxInput = page.locator(
-      "[data-testid='register-agree-checkbox'] input[type='checkbox'], [data-testid='register-agree-checkbox'] .el-checkbox__original"
-    ).first();
-    await checkboxInput.waitFor({ state: "attached", timeout: this.timeoutMs(step) });
-    await this.input.visual.highlight(page, checkboxInput);
+    const anchor = page.locator("[data-testid='register-agree-checkbox']").first();
+    await anchor.waitFor({ state: "attached", timeout: this.timeoutMs(step) });
+    await anchor.scrollIntoViewIfNeeded({ timeout: this.timeoutMs(step) });
+    await this.input.visual.highlight(page, anchor);
+
+    const checkboxInput = anchor.locator("input[type='checkbox'], .el-checkbox__original").first();
     const checked = await checkboxInput.isChecked().catch(() => false);
-    if (!checked) {
-      await checkboxInput.check({ force: true, timeout: this.timeoutMs(step) });
+    if (checked) {
+      return;
+    }
+
+    const visibleTarget = anchor.locator(".el-checkbox__input, .el-checkbox__inner, .el-checkbox__label").first();
+    await visibleTarget.click({ force: true, timeout: this.timeoutMs(step) }).catch(async () => {
+      await checkboxInput.evaluate((element: HTMLInputElement) => {
+        element.click();
+        element.dispatchEvent(new Event("input", { bubbles: true }));
+        element.dispatchEvent(new Event("change", { bubbles: true }));
+      });
+    });
+
+    const checkedAfterClick = await checkboxInput.isChecked().catch(() => false);
+    if (!checkedAfterClick) {
+      await checkboxInput.evaluate((element: HTMLInputElement) => {
+        element.checked = true;
+        element.dispatchEvent(new Event("input", { bubbles: true }));
+        element.dispatchEvent(new Event("change", { bubbles: true }));
+      });
     }
   }
 

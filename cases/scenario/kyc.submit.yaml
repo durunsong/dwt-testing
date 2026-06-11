@@ -34,42 +34,42 @@ upload_slots:
     type: web_upload
     session: user
     target: user_auth_id_upload
-    file: "uploads/cases/kyc_submit/id-card-front.png"
+    file: "uploads/cases/kyc_submit/Snipaste_2026-03-02_18-32-35.png"
 
   - step_id: upload_business_license
     name: 上传企业营业执照
     type: web_upload
     session: user
     target: kyc_license_upload
-    file: "uploads/cases/kyc_submit/business-license.png"
+    file: "uploads/cases/kyc_submit/20260106-183548.jpg"
 
   - step_id: upload_office_scene
     name: 上传企业办公场景
     type: web_upload
     session: user
     target: kyc_office_upload
-    file: "uploads/cases/kyc_submit/office-scene.png"
+    file: "uploads/cases/kyc_submit/20260106-183548.jpg"
 
   - step_id: upload_boss_id_front
     name: 上传法人身份证正面
     type: web_upload
     session: user
     target: kyc_boss_id_front_upload
-    file: "uploads/cases/kyc_submit/id-card-front.png"
+    file: "uploads/cases/kyc_submit/Snipaste_2026-03-02_18-32-35.png"
 
   - step_id: upload_boss_id_back
     name: 上传法人身份证背面
     type: web_upload
     session: user
     target: kyc_boss_id_back_upload
-    file: "uploads/cases/kyc_submit/id-card-back.png"
+    file: "uploads/cases/kyc_submit/20260106-183532.jpg"
 
   - step_id: upload_boss_id_handheld
     name: 上传法人手持身份证
     type: web_upload
     session: user
     target: kyc_boss_id_handheld_upload
-    file: "uploads/cases/kyc_submit/id-card-handheld.png"
+    file: "uploads/cases/kyc_submit/Snipaste_2026-03-02_18-32-35.png"
 steps:
   # ==================== 注册阶段 ====================
   - step_id: open_login_for_register

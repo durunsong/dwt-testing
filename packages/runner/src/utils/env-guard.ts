@@ -19,7 +19,7 @@ function isBlockedProductionHost(hostname: string): boolean {
     return false;
   }
 
-  const [firstLabel] = lower.split(".");
+  const firstLabel = lower.split(".")[0] ?? "";
   if (TEST_SUBDOMAIN_LABELS.has(firstLabel)) {
     return false;
   }

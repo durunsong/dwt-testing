@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { appendInstructionBlock, buildAttachmentAiPrompt, buildAttachmentBatchAiPrompt, collectUploadSteps, filterNewAttachmentSearchResults, insertUploadStepBeforeSubmit, isImageAttachmentFile, upsertUploadStepFile } from "./attachment-prompt";
+import { appendInstructionBlock, buildAttachmentAiPrompt, buildAttachmentBatchAiPrompt, buildFileToUploadStepsMap, collectUploadSteps, filterNewAttachmentSearchResults, getStepsUsingFile, insertUploadStepBeforeSubmit, isImageAttachmentFile, resolveAttachmentUsageTone, upsertUploadStepFile } from "./attachment-prompt";
 
 test("builds an AI prompt for attaching any local upload file to a web_upload step", () => {
   const prompt = buildAttachmentAiPrompt({
@@ -57,13 +57,14 @@ test("builds a reusable AI prompt for multiple form attachments", () => {
   assert.doesNotMatch(prompt, /上传头像/);
 });
 
-test("collects web_upload steps with target from yaml", () => {
+test("collects web_upload steps with target and file from yaml", () => {
   const steps = collectUploadSteps([
-    "steps:",
+    "upload_slots:",
     "  - step_id: upload_avatar",
     "    name: 上传头像",
     "    type: web_upload",
     "    target: admin_avatar_upload",
+    "    file: \"uploads/cases/demo/favicon.png\"",
     "  - step_id: click_save",
     "    name: 保存",
     "    type: web_click"
@@ -73,9 +74,29 @@ test("collects web_upload steps with target from yaml", () => {
     {
       stepId: "upload_avatar",
       name: "上传头像",
-      target: "admin_avatar_upload"
+      target: "admin_avatar_upload",
+      file: "uploads/cases/demo/favicon.png"
     }
   ]);
+});
+
+test("maps attachment usage tone by selected upload step", () => {
+  const steps = collectUploadSteps([
+    "  - step_id: upload_user_auth_id",
+    "    name: 上传个人认证证件照片",
+    "    type: web_upload",
+    "    file: uploads/cases/kyc_submit/id.png",
+    "  - step_id: upload_business_license",
+    "    name: 上传企业营业执照",
+    "    type: web_upload",
+    "    file: uploads/cases/kyc_submit/license.jpg"
+  ].join("\n"));
+  const map = buildFileToUploadStepsMap(steps);
+
+  assert.equal(resolveAttachmentUsageTone("uploads/cases/kyc_submit/id.png", "upload_user_auth_id", map), "active");
+  assert.equal(resolveAttachmentUsageTone("uploads/cases/kyc_submit/license.jpg", "upload_user_auth_id", map), "linked");
+  assert.equal(resolveAttachmentUsageTone("uploads/cases/kyc_submit/unused.pdf", "upload_user_auth_id", map), "unused");
+  assert.deepEqual(getStepsUsingFile("uploads/cases/kyc_submit/license.jpg", map).map((step) => step.stepId), ["upload_business_license"]);
 });
 
 test("upserts attachment file path into selected upload step", () => {

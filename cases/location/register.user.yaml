@@ -71,6 +71,7 @@ register_input_password_confirm:
 register_agree_checkbox:
   testId: "register-agree-checkbox"
   fallback:
+    - css: "[data-testid='register-agree-checkbox'] .el-checkbox__input"
     - text: "我已阅读并同意遵守"
     - role: "checkbox"
 

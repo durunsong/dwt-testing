@@ -20,3 +20,4 @@ apps/desktop/browsers.json
 Thumbs.db
 *.local
 .dev-server.log
+ai-reports/**/*

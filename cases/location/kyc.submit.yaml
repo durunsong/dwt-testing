@@ -98,7 +98,14 @@ kyc_enterprise_name:
     - placeholder: "请填写企业中文名称"
 
 kyc_enterprise_en_name:
+  testId: "kyc-enterprise-en-name"
   placeholder: "请填写企业英文名称"
+
+kyc_registration_country:
+  testId: "kyc-registration-country"
+
+kyc_staff_num:
+  testId: "kyc-staff-num"
 
 kyc_license_no:
   testId: "kyc-license-no"
@@ -107,21 +114,39 @@ kyc_license_no:
     - placeholder: "请输入营业执照号"
 
 kyc_reg_address_detail:
+  testId: "kyc-registration-address"
   placeholder: "请输入详细地址"
 
 kyc_same_as_reg_address:
+  testId: "kyc-same-as-registration-address"
   text: "与注册地址一致"
 
 kyc_setup_date:
+  testId: "kyc-setup-date"
   placeholder: "选择日期"
 
 kyc_long_term_valid:
+  testId: "kyc-long-term-valid"
   text: "长期有效"
 
+kyc_industry:
+  testId: "kyc-industry"
+
+kyc_commodity:
+  testId: "kyc-commodity"
+
+kyc_export_type:
+  testId: "kyc-export-type"
+
+kyc_export_country:
+  testId: "kyc-export-country"
+
 kyc_history_export:
+  testId: "kyc-history-export"
   placeholder: "请输入历史年出口金额，且为整数"
 
 kyc_estimate_export:
+  testId: "kyc-estimate-export"
   placeholder: "请输入预估年出口金额，且为整数"
 
 kyc_step1_next:
@@ -138,6 +163,7 @@ kyc_step2_marker:
     - text: "重要成员"
 
 kyc_boss_person_type:
+  testId: "kyc-boss-person-type"
   placeholder: "请选择成员身份（多选）"
 
 kyc_legal_person:
@@ -169,18 +195,23 @@ kyc_id_card_no:
     - placeholder: "请填写正确的证件号码"
 
 kyc_boss_birthday:
+  testId: "kyc-boss-birthday"
   placeholder: "出生日期"
 
 kyc_boss_id_start:
+  testId: "kyc-boss-id-start"
   placeholder: "派发日期"
 
 kyc_boss_id_long_term:
+  testId: "kyc-boss-id-long-term"
   text: "证件长期有效"
 
 kyc_boss_shareholding:
+  testId: "kyc-boss-shareholding"
   placeholder: "请填写持股比率"
 
 kyc_boss_live_address:
+  testId: "kyc-boss-live-address"
   placeholder: "请输入详细地址"
 
 kyc_step2_next:

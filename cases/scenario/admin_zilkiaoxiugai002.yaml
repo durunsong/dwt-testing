@@ -51,7 +51,7 @@ steps:
     type: web_upload
     session: admin
     target: admin_avatar_upload
-    file: uploads/cases/admin_zilkiaoxiugai002/favicon.png
+    file: "uploads/cases/admin_zilkiaoxiugai002/222.png"
   - step_id: click_save
     name: 点击保存按钮
     type: web_click

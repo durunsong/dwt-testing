@@ -285,6 +285,82 @@
   .case-editor-drop-sense__panel--ai .case-editor-drop-sense__line::before {
     background: #059669;
   }
+
+  .case-attachment-panel__list {
+    scroll-behavior: smooth;
+  }
+
+  .case-attachment-row {
+    border-left: 3px solid transparent;
+  }
+
+  .case-attachment-row:hover {
+    background: rgb(248 250 252 / 92%);
+  }
+
+  .case-attachment-row--active {
+    border-left-color: #3b82f6;
+    background: linear-gradient(90deg, rgb(239 246 255 / 96%), rgb(248 250 252 / 40%) 72%);
+    box-shadow: inset 0 0 0 1px rgb(59 130 246 / 10%);
+  }
+
+  .case-attachment-row--active:hover {
+    background: linear-gradient(90deg, rgb(219 234 254 / 96%), rgb(248 250 252 / 55%) 72%);
+  }
+
+  .case-attachment-row--linked {
+    border-left-color: rgb(245 158 11 / 55%);
+    background: rgb(255 251 235 / 45%);
+  }
+
+  .case-attachment-row--linked:hover {
+    background: rgb(255 251 235 / 78%);
+  }
+
+  .case-attachment-row--unused {
+    opacity: 0.82;
+  }
+
+  .case-attachment-row--unused:hover {
+    opacity: 1;
+  }
+
+  .case-attachment-row--selected {
+    box-shadow: inset 0 0 0 1px rgb(59 130 246 / 18%);
+  }
+
+  .case-attachment-row--flash {
+    animation: case-attachment-flash 680ms ease-out both;
+  }
+
+  .case-attachment-step-hint {
+    border-radius: 6px;
+    background: rgb(248 250 252 / 90%);
+    transition: background-color 180ms ease, border-color 180ms ease;
+  }
+
+  .case-attachment-step-hint--bound {
+    border: 1px solid rgb(191 219 254 / 90%);
+    background: rgb(239 246 255 / 72%);
+  }
+
+  .case-attachment-step-hint--empty {
+    border: 1px dashed rgb(203 213 225 / 90%);
+  }
+}
+
+@keyframes case-attachment-flash {
+  0% {
+    box-shadow: inset 0 0 0 1px rgb(59 130 246 / 42%), 0 0 0 0 rgb(59 130 246 / 24%);
+  }
+
+  45% {
+    box-shadow: inset 0 0 0 1px rgb(59 130 246 / 28%), 0 0 0 6px rgb(59 130 246 / 0%);
+  }
+
+  100% {
+    box-shadow: inset 0 0 0 1px rgb(59 130 246 / 10%), 0 0 0 0 rgb(59 130 246 / 0%);
+  }
 }
 
 @keyframes case-editor-drop-backdrop {
