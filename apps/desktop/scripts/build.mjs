@@ -35,6 +35,7 @@ const commonOptions = {
 };
 
 await fs.copyFile(path.resolve(playwrightCoreDir, "browsers.json"), path.resolve(desktopDir, "browsers.json"));
+await import("./generate-seed-manifest.mjs");
 
 await Promise.all([
   build({

@@ -27,6 +27,7 @@
     "dist:mac:pkg": "pnpm build && electron-builder --config electron-builder.config.cjs --mac pkg",
     "dist:mac:zip": "pnpm build && electron-builder --config electron-builder.config.cjs --mac zip",
     "pack": "pnpm build && electron-builder --config electron-builder.config.cjs --dir",
+    "test": "node --import tsx --test src/seed-sync.test.ts && node --test scripts/seed-manifest.test.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "devDependencies": {

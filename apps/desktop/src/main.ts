@@ -5,6 +5,7 @@ import process from "node:process";
 import { app, BrowserWindow, shell } from "electron";
 import { startServer, type StartedServer } from "../../server/src/index";
 import { loadPlatformConfig, platformArtifactKinds, resolveArtifactBaseDir, type PlatformConfig } from "@ai-e2e/runner";
+import { syncRuntimeSeed } from "./seed-sync";
 
 let mainWindow: BrowserWindow | undefined;
 let server: StartedServer | undefined;
@@ -126,15 +127,15 @@ async function prepareRuntimeRoot(): Promise<{ runtimeRoot: string; platformConf
 
   if (app.isPackaged) {
     await fs.mkdir(runtimeRoot, { recursive: true });
-    await copyFileIfMissing(path.resolve(process.resourcesPath, "seed", "platform.config.json"), path.resolve(runtimeRoot, "platform.config.json"));
+    await syncRuntimeSeed(runtimeRoot, path.resolve(process.resourcesPath, "seed"), {
+      logger: async (message, data) => {
+        await appendDesktopLog(`[seed-sync] ${message}${data ? ` ${JSON.stringify(data)}` : ""}`);
+      }
+    });
   }
 
   const platformConfig = loadPlatformConfig(runtimeRoot);
   await ensureDirectories(runtimeRoot, platformConfig);
-
-  if (app.isPackaged) {
-    await seedRuntimeRoot(runtimeRoot);
-  }
 
   return { runtimeRoot, platformConfig };
 }
@@ -146,51 +147,6 @@ async function ensureDirectories(runtimeRoot: string, platformConfig: PlatformCo
   ];
   await Promise.all(
     directories.map((dir) => fs.mkdir(dir, { recursive: true }))
-  );
-}
-
-async function seedRuntimeRoot(runtimeRoot: string): Promise<void> {
-  const seedDir = path.resolve(process.resourcesPath, "seed");
-  await copyMissingEntries(path.resolve(seedDir, "cases"), path.resolve(runtimeRoot, "cases"));
-  await copyFileIfMissing(path.resolve(seedDir, ".env.example"), path.resolve(runtimeRoot, ".env.example"));
-  await copyFileIfMissing(path.resolve(seedDir, "platform.config.json"), path.resolve(runtimeRoot, "platform.config.json"));
-}
-
-async function copyMissingEntries(source: string, target: string): Promise<void> {
-  if (!(await pathExists(source))) {
-    return;
-  }
-
-  await fs.mkdir(target, { recursive: true });
-  const entries = await fs.readdir(source, { withFileTypes: true });
-
-  for (const entry of entries) {
-    const sourcePath = path.resolve(source, entry.name);
-    const targetPath = path.resolve(target, entry.name);
-
-    if (entry.isDirectory()) {
-      await copyMissingEntries(sourcePath, targetPath);
-      continue;
-    }
-
-    if (entry.isFile()) {
-      await copyFileIfMissing(sourcePath, targetPath);
-    }
-  }
-}
-
-async function copyFileIfMissing(source: string, target: string): Promise<void> {
-  if ((await pathExists(target)) || !(await pathExists(source))) {
-    return;
-  }
-
-  await fs.copyFile(source, target);
-}
-
-async function pathExists(target: string): Promise<boolean> {
-  return fs.access(target).then(
-    () => true,
-    () => false
   );
 }
 
@@ -226,11 +182,15 @@ function pathExistsSync(target: string): boolean {
 }
 
 async function writeStartupError(error: Error): Promise<void> {
+  await appendDesktopLog(error.stack ?? error.message);
+}
+
+async function appendDesktopLog(message: string): Promise<void> {
   const logDir = path.resolve(app.getPath("userData"), "logs");
   await fs.mkdir(logDir, { recursive: true });
   await fs.appendFile(
     path.resolve(logDir, "desktop-main.log"),
-    `[${new Date().toISOString()}] ${error.stack ?? error.message}\n`,
+    `[${new Date().toISOString()}] ${message}\n`,
     "utf8"
   );
 }

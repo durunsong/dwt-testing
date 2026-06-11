@@ -16,6 +16,7 @@ videos/**/*
 test-results/
 playwright-report/
 apps/desktop/browsers.json
+apps/desktop/.generated/
 .DS_Store
 Thumbs.db
 *.local
