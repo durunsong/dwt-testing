@@ -26,9 +26,10 @@
     "dev": "pnpm --parallel --filter @ai-e2e/server --filter @ai-e2e/web dev",
     "dev:stop": "node scripts/kill-dev-ports.mjs",
     "setup:platform": "node scripts/setup-platform.mjs",
+    "fixtures:uploads": "node scripts/ensure-case-upload-fixtures.mjs",
     "dwt": "tsx packages/runner/src/cli.ts",
     "cases:list": "pnpm dwt list",
-    "cases:validate": "pnpm dwt validate",
+    "cases:validate": "pnpm fixtures:uploads && pnpm dwt validate",
     "case:preflight": "pnpm dwt preflight",
     "case:run": "pnpm dwt run",
     "build": "pnpm -r build",
@@ -60,7 +61,7 @@
     "desktop:dist:mac:zip": "pnpm --filter @ai-e2e/desktop run dist:mac:zip",
     "test": "pnpm -r test",
     "typecheck": "pnpm -r typecheck",
-    "ci:check": "pnpm typecheck && pnpm test && pnpm dwt validate"
+    "ci:check": "pnpm typecheck && pnpm test && pnpm fixtures:uploads && pnpm dwt validate"
   },
   "devDependencies": {
     "@types/node": "^25.9.1",

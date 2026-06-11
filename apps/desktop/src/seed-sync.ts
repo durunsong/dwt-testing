@@ -5,7 +5,7 @@ import path from "node:path";
 export const SEED_MANIFEST_FILENAME = "seed-manifest.json";
 export const SEED_SYNC_STATE_FILENAME = ".seed-sync-state.json";
 
-const MANAGED_SEED_ENTRIES = ["cases", ".env.example", "platform.config.json"] as const;
+const MANAGED_SEED_ENTRIES = ["cases", "uploads/cases", ".env.example", "platform.config.json"] as const;
 
 export interface SeedManifest {
   schemaVersion: number;

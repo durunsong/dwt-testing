@@ -44,10 +44,10 @@ KYC 用例会用 `${timestamp}` 拼接企业名称和执照号，减少重复数
 
 ## 附件要求
 
-- 文件放在 `uploads/` 或 `uploads/cases/<caseId>/` 下，本目录默认不提交。
+- 用例附件放在 `uploads/cases/<caseId>/` 下，**已提交到仓库**；运行时上下文在 `uploads/app-context/`（不入库）。
 - YAML 中只写项目相对路径，不写本机绝对路径。
 - 演示前确认附件不包含真实证件、真实姓名、手机号、邮箱或客户资料。
-- 上传失败时先执行 `pnpm dwt preflight <caseId> --env=local` 检查路径。
+- 上传失败时先执行 `pnpm dwt preflight <caseId> --env=local` 检查路径；缺失占位图可运行 `pnpm fixtures:uploads` 补齐。
 
 ## API 与 DB
 

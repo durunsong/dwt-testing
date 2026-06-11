@@ -17,6 +17,8 @@ extraResources:
     to: web
   - from: ../../cases
     to: seed/cases
+  - from: ../../uploads/cases
+    to: seed/uploads/cases
   - from: ../../.env.example
     to: seed/.env.example
   - from: ../../platform.config.json

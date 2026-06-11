@@ -22,6 +22,7 @@ module.exports = {
   extraResources: [
     { from: "../../apps/web/dist", to: "web" },
     { from: "../../cases", to: "seed/cases" },
+    { from: "../../uploads/cases", to: "seed/uploads/cases" },
     { from: "../../.env.example", to: "seed/.env.example" },
     { from: "../../platform.config.json", to: "seed/platform.config.json" },
     { from: ".generated/seed-manifest.json", to: "seed/seed-manifest.json" }

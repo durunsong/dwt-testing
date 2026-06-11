@@ -8,8 +8,13 @@ reports/*.html
 reports/**/*
 logs/*.log
 logs/**/*
+# 运行时上传上下文（不入库）
 uploads/app-context/
-uploads/**/*
+
+# 默认忽略 uploads 下其它内容，但保留用例附件目录
+uploads/*
+!uploads/cases/
+!uploads/cases/**
 screenshots/**/*
 traces/**/*
 videos/**/*

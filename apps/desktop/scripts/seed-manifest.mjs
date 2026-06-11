@@ -7,7 +7,7 @@ export const SEED_MANIFEST_FILENAME = "seed-manifest.json";
 export const SEED_SYNC_STATE_FILENAME = ".seed-sync-state.json";
 
 /** Paths under workspace root that are owned by the installer seed bundle. */
-export const MANAGED_SEED_ENTRIES = ["cases", ".env.example", "platform.config.json"];
+export const MANAGED_SEED_ENTRIES = ["cases", "uploads/cases", ".env.example", "platform.config.json"];
 
 /**
  * @param {string} rootDir

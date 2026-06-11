@@ -1,6 +1,7 @@
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import fs from "node:fs/promises";
+import { ensureCaseUploadFixtures } from "../../../scripts/ensure-case-upload-fixtures.mjs";
 import { writeSeedManifest } from "./seed-manifest.mjs";
 
 const desktopDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -9,6 +10,7 @@ const outputDir = path.resolve(desktopDir, ".generated");
 const outputPath = path.resolve(outputDir, "seed-manifest.json");
 
 const packageJson = JSON.parse(await fs.readFile(path.resolve(desktopDir, "package.json"), "utf8"));
+await ensureCaseUploadFixtures({ rootDir });
 const manifest = await writeSeedManifest({
   rootDir,
   appVersion: packageJson.version ?? "0.0.0",
